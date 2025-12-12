@@ -9,6 +9,10 @@ from service import run_deep_research
 
 app = FastAPI(title="Deep Research API")
 
+@app.get("/")
+def health_check():
+    return {"status": "ok", "message": "Deep Research API is running"}
+
 @app.post("/deep-research")
 async def deep_research_endpoint(request: Request):
     try:
