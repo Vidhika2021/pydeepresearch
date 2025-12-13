@@ -55,15 +55,31 @@ async def deep_research_endpoint(request: Request):
         # Determine the result or error
         try:
             result_text = await task
-            # Send final result
-            yield f"data: {json.dumps({'status': 'completed', 'result': result_text})}\n\n"
+            
+            # Chunk the result text (max 2000 chars per chunk)
+            chunk_size = 2000
+            total_len = len(result_text)
+            chunks = [result_text[i:i + chunk_size] for i in range(0, total_len, chunk_size)]
+            
+            if not chunks:
+                 chunks = [""] # Handle empty result case
+            
+            for i, chunk in enumerate(chunks):
+                event_data = {
+                    "type": "chunk",
+                    "seq": i + 1,
+                    "total": len(chunks),
+                    "text": chunk
+                }
+                yield f"data: {json.dumps(event_data)}\n\n"
+            
+            # Send final completion event
+            yield f"data: {json.dumps({'type': 'final', 'done': True})}\n\n"
+
         except Exception as e:
             # Send error
-            yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
         
-        # End stream
-        yield "data: [DONE]\n\n"
-
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 if __name__ == "__main__":
