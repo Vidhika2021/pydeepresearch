@@ -1,10 +1,13 @@
 import sys
 import os
+import asyncio
+import json
 
 # Add src directory to path so deep_research package can be found
 sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
 
 from fastapi import FastAPI, Request
+from fastapi.responses import StreamingResponse
 from service import run_deep_research
 
 app = FastAPI(title="Deep Research API")
@@ -33,11 +36,35 @@ async def deep_research_endpoint(request: Request):
 
     print("🔥 Prompt received:", prompt)
 
-    try:
-        result_text = await run_deep_research(prompt)
-        return {"result": result_text}
-    except Exception as e:
-        return {"result": f"Error processing request: {str(e)}"}
+    async def event_generator():
+        # Start the research as a background task
+        task = asyncio.create_task(run_deep_research(prompt))
+        
+        # Loop until the task is complete
+        while not task.done():
+            # Wait for either completion or timeout (heartbeat interval)
+            done, pending = await asyncio.wait([task], timeout=8.0)
+            
+            if task in pending:
+                # Task is still running, send a heartbeat
+                yield f"data: {json.dumps({'status': 'processing', 'message': 'Still researching...'})}\n\n"
+            else:
+                # Task completed, loop will break naturally
+                break
+        
+        # Determine the result or error
+        try:
+            result_text = await task
+            # Send final result
+            yield f"data: {json.dumps({'status': 'completed', 'result': result_text})}\n\n"
+        except Exception as e:
+            # Send error
+            yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
+        
+        # End stream
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 if __name__ == "__main__":
     import uvicorn
