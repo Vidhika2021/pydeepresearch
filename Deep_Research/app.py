@@ -29,7 +29,7 @@ class JobState(BaseModel):
 JOBS: Dict[str, JobState] = {}
 
 class ResearchRequest(BaseModel):
-    prompt: str
+    prompt: Optional[str] = None
     job_id: Optional[str] = None
 
 app = FastAPI(title="Deep Research API (Async Job Mode)")
@@ -76,12 +76,9 @@ async def deep_research_endpoint(request: ResearchRequest):
     prompt = (request.prompt or "").strip()
     job_id = (request.job_id or "").strip()
 
-    if not prompt:
-         return {
-            "status": "failed",
-            "job_id": job_id if job_id else "nan",
-            "result": "Failed: Prompt cannot be empty."
-        }
+    # Case 0: Empty prompt and no job ID
+    if not prompt and not job_id:
+        return {"result": "Error: Please provide a prompt to start research, or a Job ID to check status."}
 
     # Case 1: Start a new job (No job_id provided)
     if not job_id:
@@ -90,46 +87,39 @@ async def deep_research_endpoint(request: ResearchRequest):
         # Initialize state
         JOBS[new_job_id] = JobState(status=JobStatus.QUEUED, result=None)
         
-        # Start background task using asyncio.create_task as requested
-        # (FastAPI BackgroundTasks is also an option, but asyncio.create_task is explicit)
+        # Start background task
         asyncio.create_task(background_deep_research(new_job_id, prompt))
         
+        # Return only "result" field as requested
         return {
-            "status": "queued",
-            "job_id": new_job_id,
-            "result": "Started. Re-run with this Job ID to fetch the result."
+            "result": f"Research started. Job ID: {new_job_id}\nPlease copy this Job ID and paste it into the 'job_id' field to check progress."
         }
 
     # Case 2: Check existing job status
     if job_id not in JOBS:
         return {
-            "status": "not_found",
-            "job_id": job_id,
-            "result": "Job ID not found. Start new by leaving Job ID blank."
+            "result": f"Error: Job ID '{job_id}' not found. Please leave Job ID blank to start a new search."
         }
     
     job = JOBS[job_id]
 
     if job.status in [JobStatus.QUEUED, JobStatus.RUNNING]:
         return {
-            "status": "running",
-            "job_id": job_id,
-            "result": "Still running. Re-run with the same Job ID in ~30–60 seconds."
+            "result": f"Research in progress for Job ID: {job_id}\nStatus: {job.status.value.upper()}.\nPlease try again in 30-60 seconds."
         }
     
     if job.status == JobStatus.DONE:
+        # Return the actual full report
         return {
-            "status": "done",
-            "job_id": job_id,
             "result": job.result
         }
     
     if job.status == JobStatus.FAILED:
         return {
-            "status": "failed",
-            "job_id": job_id,
-            "result": job.result or f"Failed: {job.error}"
+            "result": f"Research terminated with error. Job ID: {job_id}\nDetails: {job.result or job.error}"
         }
+    
+    return {"result": "Unknown state"}
 
 if __name__ == "__main__":
     import uvicorn
