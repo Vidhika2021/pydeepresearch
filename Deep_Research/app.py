@@ -132,7 +132,7 @@ async def deep_research_endpoint(request: ResearchRequest):
     if job.status == JobStatus.DONE:
         # Return the actual full report (can be multi-line as it's the final result)
         return {
-            "result": "Done"
+            "result": job.result
         }
     
     if job.status == JobStatus.FAILED:
