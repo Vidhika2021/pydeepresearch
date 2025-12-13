@@ -64,6 +64,23 @@ async def background_deep_research(job_id: str, prompt: str):
             JOBS[job_id].error = str(e)
             JOBS[job_id].result = f"Failed: {str(e)}" 
 
+def is_job_id_missing(job_id: Optional[str]) -> bool:
+    """
+    Checks if job_id matches any of the 'missing' criteria for ICA:
+    - None
+    - Empty string
+    - Whitespace only
+    - 'No keywords added'
+    """
+    if not job_id:
+        return True
+    cleaned = job_id.strip()
+    if not cleaned:
+        return True
+    if cleaned.lower() == "no keywords added":
+        return True
+    return False
+
 # --- Endpoints ---
 
 @app.get("/health")
@@ -73,15 +90,17 @@ def health_check():
 @app.post("/deep-research")
 async def deep_research_endpoint(request: ResearchRequest):
     # Normalize inputs
-    prompt = (request.prompt or "").strip()
-    job_id = (request.job_id or "").strip()
+    # ICA specific: treat "No keywords added" as invalid job_id
+    raw_job_id = request.job_id
+    job_id_missing = is_job_id_missing(raw_job_id)
 
-    # Case 0: Empty prompt and no job ID
-    if not prompt and not job_id:
-        return {"result": "Error: Please provide a prompt to start research, or a Job ID to check status."}
+    # --- Case 1: Start New Job (Missing job_id) ---
+    if job_id_missing:
+        # Validate prompt only when starting new job
+        prompt = (request.prompt or "").strip()
+        if not prompt:
+             return {"result": "Error: Please provide a prompt to start research."}
 
-    # Case 1: Start a new job (No job_id provided)
-    if not job_id:
         new_job_id = str(uuid.uuid4())
         
         # Initialize state
@@ -90,33 +109,35 @@ async def deep_research_endpoint(request: ResearchRequest):
         # Start background task
         asyncio.create_task(background_deep_research(new_job_id, prompt))
         
-        # Return only "result" field as requested
+        # Return single-line success message
         return {
-            "result": f"Research started. Job ID: {new_job_id}\nPlease copy this Job ID and paste it into the 'job_id' field to check progress."
+            "result": f"Research started. Job ID: {new_job_id}. Re-run with this Job ID to get status/result."
         }
 
-    # Case 2: Check existing job status
+    # --- Case 2: Check Status (Job ID Provided) ---
+    job_id = raw_job_id.strip()
+
     if job_id not in JOBS:
         return {
-            "result": f"Error: Job ID '{job_id}' not found. Please leave Job ID blank to start a new search."
+            "result": "Job ID not found. Start new research by leaving Job ID blank."
         }
     
     job = JOBS[job_id]
 
     if job.status in [JobStatus.QUEUED, JobStatus.RUNNING]:
         return {
-            "result": f"Research in progress for Job ID: {job_id}\nStatus: {job.status.value.upper()}.\nPlease try again in 30-60 seconds."
+            "result": f"Research in progress for Job ID {job_id}. Please try again in 30-60 seconds."
         }
     
     if job.status == JobStatus.DONE:
-        # Return the actual full report
+        # Return the actual full report (can be multi-line as it's the final result)
         return {
             "result": job.result
         }
     
     if job.status == JobStatus.FAILED:
         return {
-            "result": f"Research terminated with error. Job ID: {job_id}\nDetails: {job.result or job.error}"
+            "result": f"Research failed for Job ID {job_id}. Error: {job.result or job.error}"
         }
     
     return {"result": "Unknown state"}
