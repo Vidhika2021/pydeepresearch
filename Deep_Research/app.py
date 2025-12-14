@@ -8,7 +8,7 @@ from enum import Enum
 # Add src directory to path so deep_research package can be found
 sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
 
-from fastapi import FastAPI, BackgroundTasks
+from fastapi import FastAPI, BackgroundTasks, Request
 from pydantic import BaseModel, Field
 from service import run_deep_research
 
@@ -93,7 +93,7 @@ def format_response(content: str):
     - Flat keys: result, response, text, output
     - OpenAI Chat format: choices[0].message.content
     """
-    return {
+    response = {
         "result": content,
         "response": content,
         "text": content,
@@ -108,24 +108,30 @@ def format_response(content: str):
             }
         ]
     }
+    print(f"DEBUG - ICA Response: {response}")
+    return response
 
 @app.get("/health")
 def health_check():
     return {"ok": True}
 
 @app.post("/deep-research")
-async def deep_research_endpoint(request: ResearchRequest):
-    # Normalize inputs
+async def deep_research_endpoint(request: Request):
+    # Log raw request for debugging
+    body = await request.json()
+    print(f"DEBUG - ICA Request Body: {body}")
+
+    # Extract fields manually since we aren't using Pydantic here anymore
     # ICA specific: treat "No keywords added" as invalid job_id
-    raw_job_id = request.job_id
+    raw_job_id = body.get("job_id")
     job_id_missing = is_job_id_missing(raw_job_id)
 
     # --- Case 1: Start New Job (Missing job_id) ---
     if job_id_missing:
         # Validate prompt only when starting new job
-        prompt = (request.prompt or request.query or "").strip()
+        prompt = (body.get("prompt") or body.get("query") or "").strip()
         if not prompt:
-             return {"result": "Error: Please provide a prompt to start research."}
+             return format_response("Error: Please provide a prompt to start research.")
 
         new_job_id = str(uuid.uuid4())
         
@@ -160,7 +166,7 @@ async def deep_research_endpoint(request: ResearchRequest):
         msg = f"Research failed for Job ID {job_id}. Error: {job.result or job.error}"
         return format_response(msg)
     
-    return {"result": "Unknown state"}
+    return format_response("Unknown state")
 
 if __name__ == "__main__":
     import uvicorn
