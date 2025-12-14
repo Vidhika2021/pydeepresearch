@@ -87,6 +87,28 @@ def is_job_id_missing(job_id: Optional[str]) -> bool:
 
 # --- Endpoints ---
 
+def format_response(content: str):
+    """
+    Returns a dict with multiple formats to maximize compatibility:
+    - Flat keys: result, response, text, output
+    - OpenAI Chat format: choices[0].message.content
+    """
+    return {
+        "result": content,
+        "response": content,
+        "text": content,
+        "output": content,
+        "choices": [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": content
+                },
+                "finish_reason": "stop"
+            }
+        ]
+    }
+
 @app.get("/health")
 def health_check():
     return {"ok": True}
@@ -115,49 +137,28 @@ async def deep_research_endpoint(request: ResearchRequest):
         
         # Return single-line success message
         msg = f"Research started. Job ID: {new_job_id}. Re-run with this Job ID to get status/result."
-        return {
-            "result": msg,
-            "response": msg,
-            "text": msg,
-            "output": msg
-        }
+        return format_response(msg)
 
     # --- Case 2: Check Status (Job ID Provided) ---
     job_id = raw_job_id.strip()
 
     if job_id not in JOBS:
-        return {
-            "result": "Job ID not found. Start new research by leaving Job ID blank."
-        }
+        msg = "Job ID not found. Start new research by leaving Job ID blank."
+        return format_response(msg)
     
     job = JOBS[job_id]
 
     if job.status in [JobStatus.QUEUED, JobStatus.RUNNING]:
         msg = f"Research in progress for Job ID {job_id}. Please try again in 30-60 seconds."
-        return {
-            "result": msg,
-            "response": msg,
-            "text": msg,
-            "output": msg
-        }
+        return format_response(msg)
     
     if job.status == JobStatus.DONE:
-        # Return the actual full report (can be multi-line as it's the final result)
-        return {
-            "result": job.result,
-            "response": job.result,
-            "text": job.result,
-            "output": job.result
-        }
+        # Return the actual full report
+        return format_response(job.result)
     
     if job.status == JobStatus.FAILED:
         msg = f"Research failed for Job ID {job_id}. Error: {job.result or job.error}"
-        return {
-            "result": msg,
-            "response": msg,
-            "text": msg,
-            "output": msg
-        }
+        return format_response(msg)
     
     return {"result": "Unknown state"}
 
