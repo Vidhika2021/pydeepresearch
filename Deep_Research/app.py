@@ -30,7 +30,11 @@ JOBS: Dict[str, JobState] = {}
 
 class ResearchRequest(BaseModel):
     prompt: Optional[str] = None
+    query: Optional[str] = None # ICA sends 'query'
     job_id: Optional[str] = None
+
+    class Config:
+        extra = "allow" # Allow extra fields like 'stream', 'context'
 
 app = FastAPI(title="Deep Research API (Async Job Mode)")
 
@@ -97,7 +101,7 @@ async def deep_research_endpoint(request: ResearchRequest):
     # --- Case 1: Start New Job (Missing job_id) ---
     if job_id_missing:
         # Validate prompt only when starting new job
-        prompt = (request.prompt or "").strip()
+        prompt = (request.prompt or request.query or "").strip()
         if not prompt:
              return {"result": "Error: Please provide a prompt to start research."}
 
