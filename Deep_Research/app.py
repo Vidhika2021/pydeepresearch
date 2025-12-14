@@ -9,6 +9,7 @@ from enum import Enum
 sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
 
 from fastapi import FastAPI, BackgroundTasks, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from service import run_deep_research
 
@@ -87,30 +88,28 @@ def is_job_id_missing(job_id: Optional[str]) -> bool:
 
 # --- Endpoints ---
 
-def format_ica_response(text: str, is_error: bool = False):
+def return_mcp(text: str):
     """
-    Returns the specific JSON structure requested:
+    Returns a strict MCP-style JSON response:
     {
-        "status": "success",
-        "invocationId": <uuid>,
-        "response": [{"message": text, "type": "text"}]
-    }
-    """
-    invocation_id = str(uuid.uuid4())
-    status = "failed" if is_error else "success"
-    
-    response = {
-        "status": status,
-        "invocationId": invocation_id,
-        "response": [
+        "content": [
             {
-                "message": text,
-                "type": "text"
+                "type": "text",
+                "text": "..."
             }
         ]
     }
-    print(f"DEBUG - ICA Response: {response}")
-    return response
+    """
+    content = {
+        "content": [
+            {
+                "type": "text",
+                "text": text
+            }
+        ]
+    }
+    print(f"DEBUG - ICA Response: {content}")
+    return JSONResponse(content=content)
 
 @app.get("/health")
 def health_check():
@@ -132,7 +131,7 @@ async def deep_research_endpoint(request: Request):
         # Validate prompt only when starting new job
         prompt = (body.get("prompt") or body.get("query") or "").strip()
         if not prompt:
-             return format_ica_response("Error: Please provide a prompt to start research.", is_error=True)
+             return return_mcp("Error: Please provide a prompt to start research.")
 
         new_job_id = str(uuid.uuid4())
         
@@ -143,27 +142,27 @@ async def deep_research_endpoint(request: Request):
         asyncio.create_task(background_deep_research(new_job_id, prompt))
         
         # Return success message
-        return format_ica_response(f"Research started. Job ID: {new_job_id}. Re-run with this Job ID to get status/result.")
+        return return_mcp(f"Research started. Job ID: {new_job_id}. Re-run with this Job ID to get status/result.")
 
     # --- Case 2: Check Status (Job ID Provided) ---
     job_id = raw_job_id.strip()
 
     if job_id not in JOBS:
-        return format_ica_response("Job ID not found. Start new research by leaving Job ID blank.", is_error=True)
+        return return_mcp("Job ID not found. Start new research by leaving Job ID blank.")
     
     job = JOBS[job_id]
 
     if job.status in [JobStatus.QUEUED, JobStatus.RUNNING]:
-        return format_ica_response(f"Research in progress for Job ID {job_id}. Please try again in 30-60 seconds.")
+        return return_mcp(f"Research in progress for Job ID {job_id}. Please try again in 30-60 seconds.")
     
     if job.status == JobStatus.DONE:
         # Return the actual full report
-        return format_ica_response(job.result)
+        return return_mcp(job.result)
     
     if job.status == JobStatus.FAILED:
-        return format_ica_response(f"Research failed for Job ID {job_id}. Error: {job.result or job.error}", is_error=True)
+        return return_mcp(f"Research failed for Job ID {job_id}. Error: {job.result or job.error}")
     
-    return format_ica_response("Unknown state", is_error=True)
+    return return_mcp("Unknown state")
 
 if __name__ == "__main__":
     import uvicorn
