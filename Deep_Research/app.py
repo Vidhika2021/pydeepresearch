@@ -87,26 +87,23 @@ def is_job_id_missing(job_id: Optional[str]) -> bool:
 
 # --- Endpoints ---
 
-def format_response(content: str):
+def format_response(content: str, job_id: Optional[str] = None, status: Optional[str] = None):
     """
-    Returns a dict with multiple formats to maximize compatibility:
-    - Flat keys: result, response, text, output
-    - OpenAI Chat format: choices[0].message.content
+    Returns a simplified JSON object as requested:
+    {
+      "content": "...",
+      "metadata": {
+        "job_id": "...",
+        "status": "..."
+      }
+    }
     """
     response = {
-        "result": content,
-        "response": content,
-        "text": content,
-        "output": content,
-        "choices": [
-            {
-                "message": {
-                    "role": "assistant",
-                    "content": content
-                },
-                "finish_reason": "stop"
-            }
-        ]
+        "content": content,
+        "metadata": {
+            "job_id": job_id,
+            "status": status
+        }
     }
     print(f"DEBUG - ICA Response: {response}")
     return response
@@ -143,30 +140,30 @@ async def deep_research_endpoint(request: Request):
         
         # Return single-line success message
         msg = f"Research started. Job ID: {new_job_id}. Re-run with this Job ID to get status/result."
-        return format_response(msg)
+        return format_response(msg, job_id=new_job_id, status=JobStatus.QUEUED.value)
 
     # --- Case 2: Check Status (Job ID Provided) ---
     job_id = raw_job_id.strip()
 
     if job_id not in JOBS:
         msg = "Job ID not found. Start new research by leaving Job ID blank."
-        return format_response(msg)
+        return format_response(msg, job_id=job_id, status="not_found")
     
     job = JOBS[job_id]
 
     if job.status in [JobStatus.QUEUED, JobStatus.RUNNING]:
         msg = f"Research in progress for Job ID {job_id}. Please try again in 30-60 seconds."
-        return format_response(msg)
+        return format_response(msg, job_id=job_id, status=job.status.value)
     
     if job.status == JobStatus.DONE:
         # Return the actual full report
-        return format_response(job.result)
+        return format_response(job.result, job_id=job_id, status=JobStatus.DONE.value)
     
     if job.status == JobStatus.FAILED:
         msg = f"Research failed for Job ID {job_id}. Error: {job.result or job.error}"
-        return format_response(msg)
+        return format_response(msg, job_id=job_id, status=JobStatus.FAILED.value)
     
-    return format_response("Unknown state")
+    return format_response("Unknown state", job_id=raw_job_id, status="unknown")
 
 if __name__ == "__main__":
     import uvicorn
