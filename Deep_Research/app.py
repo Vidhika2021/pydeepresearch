@@ -9,6 +9,7 @@ from enum import Enum
 sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
 
 from fastapi import FastAPI, BackgroundTasks, Request
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 from service import run_deep_research
 
@@ -87,32 +88,11 @@ def is_job_id_missing(job_id: Optional[str]) -> bool:
 
 # --- Endpoints ---
 
-def format_response(content: str, job_id: Optional[str] = None, status: Optional[str] = None):
-    """
-    Returns a simplified JSON object as requested:
-    {
-      "content": "...",
-      "metadata": {
-        "job_id": "...",
-        "status": "..."
-      }
-    }
-    """
-    response = {
-        "content": content,
-        "metadata": {
-            "job_id": job_id,
-            "status": status
-        }
-    }
-    print(f"DEBUG - ICA Response: {response}")
-    return response
-
 @app.get("/health")
 def health_check():
     return {"ok": True}
 
-@app.post("/deep-research")
+@app.post("/deep-research", response_class=PlainTextResponse)
 async def deep_research_endpoint(request: Request):
     # Log raw request for debugging
     body = await request.json()
@@ -128,7 +108,7 @@ async def deep_research_endpoint(request: Request):
         # Validate prompt only when starting new job
         prompt = (body.get("prompt") or body.get("query") or "").strip()
         if not prompt:
-             return format_response("Error: Please provide a prompt to start research.")
+             return "Error: Please provide a prompt to start research."
 
         new_job_id = str(uuid.uuid4())
         
@@ -138,32 +118,28 @@ async def deep_research_endpoint(request: Request):
         # Start background task
         asyncio.create_task(background_deep_research(new_job_id, prompt))
         
-        # Return single-line success message
-        msg = f"Research started. Job ID: {new_job_id}. Re-run with this Job ID to get status/result."
-        return format_response(msg, job_id=new_job_id, status=JobStatus.QUEUED.value)
+        # Return single-line success message (Plain Text)
+        return f"Research started. Job ID: {new_job_id}. Re-run with this Job ID to get status/result."
 
     # --- Case 2: Check Status (Job ID Provided) ---
     job_id = raw_job_id.strip()
 
     if job_id not in JOBS:
-        msg = "Job ID not found. Start new research by leaving Job ID blank."
-        return format_response(msg, job_id=job_id, status="not_found")
+        return "Job ID not found. Start new research by leaving Job ID blank."
     
     job = JOBS[job_id]
 
     if job.status in [JobStatus.QUEUED, JobStatus.RUNNING]:
-        msg = f"Research in progress for Job ID {job_id}. Please try again in 30-60 seconds."
-        return format_response(msg, job_id=job_id, status=job.status.value)
+        return f"Research in progress for Job ID {job_id}. Please try again in 30-60 seconds."
     
     if job.status == JobStatus.DONE:
-        # Return the actual full report
-        return format_response(job.result, job_id=job_id, status=JobStatus.DONE.value)
+        # Return the actual full report as plain text
+        return job.result
     
     if job.status == JobStatus.FAILED:
-        msg = f"Research failed for Job ID {job_id}. Error: {job.result or job.error}"
-        return format_response(msg, job_id=job_id, status=JobStatus.FAILED.value)
+        return f"Research failed for Job ID {job_id}. Error: {job.result or job.error}"
     
-    return format_response("Unknown state", job_id=raw_job_id, status="unknown")
+    return "Unknown state"
 
 if __name__ == "__main__":
     import uvicorn
