@@ -114,8 +114,12 @@ async def deep_research_endpoint(request: ResearchRequest):
         asyncio.create_task(background_deep_research(new_job_id, prompt))
         
         # Return single-line success message
+        msg = f"Research started. Job ID: {new_job_id}. Re-run with this Job ID to get status/result."
         return {
-            "result": f"Research started. Job ID: {new_job_id}. Re-run with this Job ID to get status/result."
+            "result": msg,
+            "response": msg,
+            "text": msg,
+            "output": msg
         }
 
     # --- Case 2: Check Status (Job ID Provided) ---
@@ -129,19 +133,30 @@ async def deep_research_endpoint(request: ResearchRequest):
     job = JOBS[job_id]
 
     if job.status in [JobStatus.QUEUED, JobStatus.RUNNING]:
+        msg = f"Research in progress for Job ID {job_id}. Please try again in 30-60 seconds."
         return {
-            "result": f"Research in progress for Job ID {job_id}. Please try again in 30-60 seconds."
+            "result": msg,
+            "response": msg,
+            "text": msg,
+            "output": msg
         }
     
     if job.status == JobStatus.DONE:
         # Return the actual full report (can be multi-line as it's the final result)
         return {
-            "result": job.result
+            "result": job.result,
+            "response": job.result,
+            "text": job.result,
+            "output": job.result
         }
     
     if job.status == JobStatus.FAILED:
+        msg = f"Research failed for Job ID {job_id}. Error: {job.result or job.error}"
         return {
-            "result": f"Research failed for Job ID {job_id}. Error: {job.result or job.error}"
+            "result": msg,
+            "response": msg,
+            "text": msg,
+            "output": msg
         }
     
     return {"result": "Unknown state"}
