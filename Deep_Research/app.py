@@ -88,25 +88,17 @@ def is_job_id_missing(job_id: Optional[str]) -> bool:
 
 # --- Endpoints ---
 
-def return_mcp(text: str):
+# --- Endpoints ---
+
+def return_simple_message(text: str):
     """
-    Returns a strict MCP-style JSON response:
+    Returns the simplest possible JSON response:
     {
-        "content": [
-            {
-                "type": "text",
-                "text": "..."
-            }
-        ]
+        "message": "..."
     }
     """
     content = {
-        "content": [
-            {
-                "type": "text",
-                "text": text
-            }
-        ]
+        "message": text
     }
     print(f"DEBUG - ICA Response: {content}")
     return JSONResponse(content=content)
@@ -131,7 +123,7 @@ async def deep_research_endpoint(request: Request):
         # Validate prompt only when starting new job
         prompt = (body.get("prompt") or body.get("query") or "").strip()
         if not prompt:
-             return return_mcp("Error: Please provide a prompt to start research.")
+             return return_simple_message("Error: Please provide a prompt to start research.")
 
         new_job_id = str(uuid.uuid4())
         
@@ -142,27 +134,27 @@ async def deep_research_endpoint(request: Request):
         asyncio.create_task(background_deep_research(new_job_id, prompt))
         
         # Return success message
-        return return_mcp(f"Research started. Job ID: {new_job_id}. Re-run with this Job ID to get status/result.")
+        return return_simple_message(f"Research started. Job ID: {new_job_id}. Re-run with this Job ID to get status/result.")
 
     # --- Case 2: Check Status (Job ID Provided) ---
     job_id = raw_job_id.strip()
 
     if job_id not in JOBS:
-        return return_mcp("Job ID not found. Start new research by leaving Job ID blank.")
+        return return_simple_message("Job ID not found. Start new research by leaving Job ID blank.")
     
     job = JOBS[job_id]
 
     if job.status in [JobStatus.QUEUED, JobStatus.RUNNING]:
-        return return_mcp(f"Research in progress for Job ID {job_id}. Please try again in 30-60 seconds.")
+        return return_simple_message(f"Research in progress for Job ID {job_id}. Please try again in 30-60 seconds.")
     
     if job.status == JobStatus.DONE:
         # Return the actual full report
-        return return_mcp(job.result)
+        return return_simple_message(job.result)
     
     if job.status == JobStatus.FAILED:
-        return return_mcp(f"Research failed for Job ID {job_id}. Error: {job.result or job.error}")
+        return return_simple_message(f"Research failed for Job ID {job_id}. Error: {job.result or job.error}")
     
-    return return_mcp("Unknown state")
+    return return_simple_message("Unknown state")
 
 if __name__ == "__main__":
     import uvicorn
