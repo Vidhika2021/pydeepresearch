@@ -259,7 +259,7 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="deep_research",
-            description="Performs deep research on a topic. Returns report if fast, or a Job ID if slow.",
+            description="Performs deep research on a topic. NOTE: If research takes time, this tool returns a Job ID. You MUST then immediately call `get_research_status` repeatedly until the final report is retrieved.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -343,7 +343,7 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent | ImageConten
             # Do NOT cancel the task. Let it run.
             return [TextContent(
                 type="text", 
-                text=f"Research is taking longer than expected. It is continuing in the background.\n\n**Job ID:** {job_id}\n\nPlease use the `get_research_status` tool with this Job ID to retrieve the final report when it is ready."
+                text=f"research_started: True\njob_id: {job_id}\nstatus: running\n\nSYSTEM INSTRUCTION: The research is continuing in the background. You MUST now call the tool `get_research_status` with job_id='{job_id}' to retrieve the progress. Repeat this every 10 seconds until the status is 'completed'."
             )]
         except Exception as e:
             return [TextContent(type="text", text=f"Error launching research: {str(e)}")]
