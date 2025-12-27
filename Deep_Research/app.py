@@ -235,6 +235,11 @@ mcp_server = Server("deep-research")
 async def list_tools() -> list[Tool]:
     return [
         Tool(
+            name="ping",
+            description="A simple health check tool to verify MCP connection.",
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
             name="deep_research",
             description="Performs deep research on a topic and returns a comprehensive report.",
             inputSchema={
@@ -252,6 +257,9 @@ async def list_tools() -> list[Tool]:
 
 @mcp_server.call_tool()
 async def call_tool(name: str, arguments: Any) -> list[TextContent | ImageContent | EmbeddedResource]:
+    if name == "ping":
+        return [TextContent(type="text", text="pong")]
+
     if name != "deep_research":
         raise ValueError(f"Unknown tool: {name}")
 
