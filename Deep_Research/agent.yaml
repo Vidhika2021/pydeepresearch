@@ -1,0 +1,15 @@
+apiVersion: aiis.ibm.com/v1alpha1
+kind: AgentOrchestration
+metadata:
+  name: deep-research-agent
+  description: An agent that performs deep research on a given topic using search tools and reasoning.
+spec:
+  # Replace with your actual Render URL
+  url: https://deep-research-api-mrqq.onrender.com
+  description: An agent that performs deep research on a given topic using search tools and reasoning.
+  version: 1.0.0
+  interface:
+    primary: /deep-research
+    type: http-post
+  auth:
+    type: none

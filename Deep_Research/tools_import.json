@@ -1,0 +1,28 @@
+[
+  {
+    "name": "deep_research",
+    "displayName": "Deep Research Agent",
+    "url": "https://deep-research-api-mrqq.onrender.com/deep-research/sync",
+    "integration_type": "REST",
+    "request_type": "POST",
+    "description": "Performs deep research on a topic and returns a comprehensive report.",
+    "auth_type": "none",
+    "auth_value": "",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "input_schema": {
+      "title": "DeepResearchInput",
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "description": "The topic or question to research deeply"
+        }
+      },
+      "required": ["prompt"]
+    },
+    "jsonpath_filter": "$.response[0].message",
+    "tags": ["research", "deep-research", "agent", "ai"]
+  }
+]

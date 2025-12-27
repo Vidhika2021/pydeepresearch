@@ -1,0 +1,15 @@
+{
+  "name": "Deep Research Agent",
+  "description": "An agent that performs deep research on a given topic using search tools and reasoning.",
+  "version": "1.0.0",
+  "auth": {
+    "type": "none"
+  },
+  "interface": {
+    "primary": "/deep-research",
+    "type": "http-post"
+  },
+  "contact": {
+    "email": "support@example.com"
+  }
+}

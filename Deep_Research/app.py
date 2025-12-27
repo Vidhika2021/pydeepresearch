@@ -40,6 +40,32 @@ class ResearchRequest(BaseModel):
 
 app = FastAPI(title="Deep Research API (Async Job Mode)")
 
+# Add CORS for A2A / external UI access
+from fastapi.middleware.cors import CORSMiddleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.get("/debug/routes")
+def debug_routes():
+    return sorted([f"{','.join(r.methods or [])} {r.path}" for r in app.router.routes])
+
+@app.get("/.well-known/agent-card.json")
+@app.get("/agent-card.json")
+def get_agent_card(request: Request):
+    import json
+    with open(os.path.join(os.path.dirname(__file__), "agent.json"), "r") as f:
+        data = json.load(f)
+    
+    # Dynamically set the URL to the current server address
+    # This ensures it works on Render, localhost, or anywhere else without hardcoding
+    data["url"] = str(request.base_url).rstrip("/")
+    return data
+
 
 async def background_deep_research(job_id: str, prompt: str):
     print(f"🚀 Job {job_id} started. Prompt: {prompt[:50]}...")
@@ -160,7 +186,201 @@ async def deep_research_endpoint(request: Request):
     return return_simple_message("Unknown state")
 
 
-if __name__ == "__main__":
-    import uvicorn
+@app.post("/deep-research/sync")
+async def deep_research_sync(request: Request):
+    """
+    Synchronous endpoint for tool calling.
+    Waits for the research to complete and returns the result immediately.
+    """
+    body = await request.json()
+    print(f"DEBUG - Sync Request Body: {body}")
+    
+    prompt = (body.get("prompt") or body.get("query") or "").strip()
+    if not prompt:
+        return return_simple_message("Error: Please provide a prompt.")
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    try:
+        # Run research and await result
+        report = await run_deep_research(prompt)
+        return return_simple_message(report)
+    except Exception as e:
+        print(f"❌ Sync Research Failed: {e}")
+        return return_simple_message(f"Research failed: {str(e)}")
+
+
+
+# ===== MCP SERVER SETUP =====
+from mcp.server import Server
+from mcp.types import Tool, TextContent, ImageContent, EmbeddedResource
+import mcp.types as types
+import asyncio
+import anyio
+from typing import Dict, Any
+from sse_starlette.sse import EventSourceResponse
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+
+mcp_server = Server("deep-research")
+
+@mcp_server.list_tools()
+async def list_tools() -> list[Tool]:
+    return [
+        Tool(
+            name="deep_research",
+            description="Performs deep research on a topic and returns a comprehensive report.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "prompt": {
+                        "type": "string",
+                        "description": "The topic or question to research deeply",
+                    }
+                },
+                "required": ["prompt"],
+            },
+        )
+    ]
+
+@mcp_server.call_tool()
+async def call_tool(name: str, arguments: Any) -> list[TextContent | ImageContent | EmbeddedResource]:
+    if name != "deep_research":
+        raise ValueError(f"Unknown tool: {name}")
+
+    prompt = arguments.get("prompt")
+    if not prompt:
+        raise ValueError("Prompt is required")
+
+    try:
+        report = await run_deep_research(prompt)
+        return [TextContent(type="text", text=report)]
+    except Exception as e:
+        print(f"Tool execution failed: {e}")
+        return [TextContent(type="text", text=f"Error executing research: {str(e)}")]
+
+
+# ===== MCP SSE ENDPOINTS (MANUAL WIRING) =====
+
+# Session storage: Map session_id -> input_stream_sender (to send messages TO the server)
+# The server writes responses to the output_stream, which we consume in /sse
+web_server_sessions: Dict[str, anyio.streams.memory.MemoryObjectSendStream] = {}
+
+@app.get("/sse")
+async def handle_sse(request: Request):
+    """
+    Manual SSE endpoint for MCP.
+    """
+    # Create memory streams for bidirectional communication
+    # client_input: /messages -> input_send -> input_recv -> mcp_server
+    # server_output: mcp_server -> output_send -> output_recv -> /sse
+    
+    input_send, input_recv = anyio.create_memory_object_stream(100)
+    output_send, output_recv = anyio.create_memory_object_stream(100)
+    
+    session_id = str(uuid.uuid4())
+    web_server_sessions[session_id] = input_send
+    
+    print(f"Starting SSE session: {session_id}")
+
+    async def sse_generator():
+        # 1. Send the "endpoint" event with the session URL
+        # The client uses this URl to post messages
+        yield {
+             "event": "endpoint", 
+             "data": f"/messages?session_id={session_id}"
+        }
+        
+        # 2. Start the MCP server loop in the background
+        # It consumes from input_recv and writes to output_send
+        server_task = asyncio.create_task(
+            mcp_server.run(
+                input_recv,
+                output_send,
+                mcp_server.create_initialization_options()
+            )
+        )
+        
+        try:
+             # 3. Consume output from the server and yield as SSE
+             async with output_recv:
+                 async for message in output_recv:
+                     # message is a JSON-RPC message object (or types.JSONRPCMessage)
+                     # We verify it's a valid SSE message format
+                     # Use standard server-sent events format: event: message\ndata: ...
+                     
+                     # Simple mcp serialization:
+                     if isinstance(message, Exception):
+                         yield {"event": "error", "data": str(message)}
+                         continue
+                         
+                     # The mcp server run loop outputs fully formatted JSON-RPC messages/exceptions over the stream
+                     # We simply wrap them in the 'message' event standard
+                     
+                     # Note: mcp_server.run writes the *object* to the stream.
+                     # We need to serialize it to JSON string for SSE data.
+                     # Or does it write bytes/strings?
+                     # The SDK types say: run(read_stream: MemoryObjectReceiveStream[JSONRPCMessage | Exception], ...)
+                     # So valid messages are objects. We must serialize.
+                     
+                     try:
+                        json_str = message.model_dump_json() # Pydantic v2
+                     except AttributeError:
+                        json_str = message.json() # Pydantic v1 fallback
+                     
+                     yield {"event": "message", "data": json_str}
+
+        except asyncio.CancelledError:
+             print(f"SSE Client disconnected {session_id}")
+        except Exception as e:
+             print(f"SSE Generator Error: {e}")
+             yield {"event": "error", "data": str(e)}
+        finally:
+             server_task.cancel()
+             if session_id in web_server_sessions:
+                 del web_server_sessions[session_id]
+             try:
+                 await server_task
+             except asyncio.CancelledError:
+                 pass
+
+    return EventSourceResponse(sse_generator())
+
+
+@app.post("/messages")
+async def handle_messages(request: Request):
+    """
+    Forward client messages to the specific session's input stream.
+    """
+    session_id = request.query_params.get("session_id") or request.query_params.get("sessionId")
+    
+    if not session_id:
+        return JSONResponse(status_code=400, content={"error": "Missing session_id"})
+        
+    input_sender = web_server_sessions.get(session_id)
+    if not input_sender:
+        return JSONResponse(status_code=404, content={"error": "Session not found"})
+        
+    try:
+        body = await request.json()
+        
+        # Parse into MCP JSONRPCMessage
+        # We need to identify correct type?
+        # Actually, mcp_server.run expects input to be JSONRPCMessage objects.
+        # We can use the Pydantic adapter or manually parse.
+        # The easiest way is to use the type adapter from mcp.types
+        
+        import mcp.types as types
+        # Basic deserialization - we can try generic dict if the server accepts it?
+        # No, python mcp sdk is typed.
+        # We need to convert the dict 'body' into a JSONRPCMessage.
+        
+        # Safe catch-all parsing using Pydantic Adapter for the Union type?
+        # mcp.types.JSONRPCMessage is a Union.
+        from pydantic import TypeAdapter
+        message = TypeAdapter(types.JSONRPCMessage).validate_python(body)
+        
+        await input_sender.send(message)
+        return JSONResponse(content={"status": "accepted"})
+        
+    except Exception as e:
+        print(f"Error handling message: {e}")
+
