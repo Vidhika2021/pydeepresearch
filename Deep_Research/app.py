@@ -354,9 +354,16 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent | ImageConten
         except asyncio.TimeoutError:
             print(f"DEBUG: Job {job_id} timed out (sync compliance). Returning Async Job ID.")
             # Do NOT cancel the task. Let it run.
+            import json
+            output_data = {
+                "job_id": job_id,
+                "status": "running",
+                "research_started": True,
+                "instruction": f"SYSTEM INSTRUCTION: The research is continuing in the background. You MUST now call the tool `get_research_status` with job_id='{job_id}' to retrieve the progress. Repeat this every 10 seconds until the status is 'completed'."
+            }
             return [TextContent(
                 type="text", 
-                text=f"job_id: {job_id}\nstatus: running\nresearch_started: True\n\nSYSTEM INSTRUCTION: The research is continuing in the background. You MUST now call the tool `get_research_status` with job_id='{job_id}' to retrieve the progress. Repeat this every 10 seconds until the status is 'completed'."
+                text=json.dumps(output_data, indent=2)
             )]
         except Exception as e:
             return [TextContent(type="text", text=f"Error launching research: {str(e)}")]
