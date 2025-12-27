@@ -322,11 +322,11 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent | ImageConten
         # We use asyncio.create_task to run it independently of this request
         task = asyncio.create_task(run_research_task(job_id, prompt))
         
-        # Try to wait for it for 30s (Hybrid Sync/Async)
+        # Try to wait for it for 5s (Immediate Async Mode)
         try:
-            print(f"DEBUG: Waiting for Job {job_id} (timeout 30s)")
+            print(f"DEBUG: Waiting for Job {job_id} (timeout 5s)")
             # Wait for the SPECIFIC task
-            await asyncio.wait_for(asyncio.shield(task), timeout=30.0)
+            await asyncio.wait_for(asyncio.shield(task), timeout=5.0)
             
             # If we get here, task is done
             # Retrieve result from storage
@@ -336,7 +336,7 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent | ImageConten
             elif job and job["status"] == "failed":
                 return [TextContent(type="text", text=f"Error: {job.get('error')}")]
             else:
-                 return [TextContent(type="text", text="Error: Job Job finished but no result state found.")]
+                 return [TextContent(type="text", text="Error: Job finished but no result state found.")]
                  
         except asyncio.TimeoutError:
             print(f"DEBUG: Job {job_id} timed out (sync compliance). Returning Async Job ID.")
