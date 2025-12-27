@@ -233,19 +233,28 @@ from starlette.responses import JSONResponse
 # Global Job Tracking
 RESEARCH_JOBS: Dict[str, Dict[str, Any]] = {}
 
+
 async def run_research_task(job_id: str, prompt: str):
     """
     Background task wrapper to update job status.
     """
-    RESEARCH_JOBS[job_id] = {"status": "running", "result": None}
+    RESEARCH_JOBS[job_id] = {"status": "running", "result": None, "logs": []}
+    
+    async def log_callback(msg: str):
+        # Keep only last 10 logs to save memory, or just append
+        RESEARCH_JOBS[job_id]["logs"].append(msg)
+    
     try:
         print(f"DEBUG: Job {job_id} started via background task")
-        result = await run_deep_research(prompt)
-        RESEARCH_JOBS[job_id] = {"status": "completed", "result": result}
+        # Pass callback to service
+        result = await run_deep_research(prompt, status_callback=log_callback)
+        RESEARCH_JOBS[job_id]["status"] = "completed"
+        RESEARCH_JOBS[job_id]["result"] = result
         print(f"DEBUG: Job {job_id} completed successfully")
     except Exception as e:
         print(f"DEBUG: Job {job_id} failed: {e}")
-        RESEARCH_JOBS[job_id] = {"status": "failed", "error": str(e)}
+        RESEARCH_JOBS[job_id]["status"] = "failed"
+        RESEARCH_JOBS[job_id]["error"] = str(e)
 
 mcp_server = Server("deep-research")
 
@@ -273,7 +282,7 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="get_research_status",
-            description="Checks the status of a background research job.",
+            description="Checks the status of a background research job. Returns logs if running.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -302,12 +311,16 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent | ImageConten
             return [TextContent(type="text", text="Job not found")]
             
         if job["status"] == "running":
-            return [TextContent(type="text", text=f"Job {job_id} is still running. Please check again later.")]
+            # Get latest log
+            logs = job.get("logs", [])
+            latest_log = logs[-1] if logs else "Processing..."
+            return [TextContent(type="text", text=f"Job {job_id} is still running.\nLATEST STATUS: {latest_log}\n\nPlease check again in 10 seconds.")]
         elif job["status"] == "failed":
              return [TextContent(type="text", text=f"Job {job_id} failed: {job.get('error')}")]
         else:
              # Completed
              return [TextContent(type="text", text=job["result"])]
+
 
     if name == "deep_research":
         prompt = arguments.get("prompt")
