@@ -229,6 +229,24 @@ from sse_starlette.sse import EventSourceResponse
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
+
+# Global Job Tracking
+RESEARCH_JOBS: Dict[str, Dict[str, Any]] = {}
+
+async def run_research_task(job_id: str, prompt: str):
+    """
+    Background task wrapper to update job status.
+    """
+    RESEARCH_JOBS[job_id] = {"status": "running", "result": None}
+    try:
+        print(f"DEBUG: Job {job_id} started via background task")
+        result = await run_deep_research(prompt)
+        RESEARCH_JOBS[job_id] = {"status": "completed", "result": result}
+        print(f"DEBUG: Job {job_id} completed successfully")
+    except Exception as e:
+        print(f"DEBUG: Job {job_id} failed: {e}")
+        RESEARCH_JOBS[job_id] = {"status": "failed", "error": str(e)}
+
 mcp_server = Server("deep-research")
 
 @mcp_server.list_tools()
@@ -241,7 +259,7 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="deep_research",
-            description="Performs deep research on a topic and returns a comprehensive report.",
+            description="Performs deep research on a topic. Returns report if fast, or a Job ID if slow.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -252,6 +270,20 @@ async def list_tools() -> list[Tool]:
                 },
                 "required": ["prompt"],
             },
+        ),
+        Tool(
+            name="get_research_status",
+            description="Checks the status of a background research job.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "job_id": {
+                        "type": "string",
+                        "description": "The Job ID returned by deep_research",
+                    }
+                },
+                "required": ["job_id"],
+            },
         )
     ]
 
@@ -260,29 +292,64 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent | ImageConten
     if name == "ping":
         return [TextContent(type="text", text="pong")]
 
-    if name != "deep_research":
-        raise ValueError(f"Unknown tool: {name}")
+    if name == "get_research_status":
+        job_id = arguments.get("job_id")
+        if not job_id:
+            return [TextContent(type="text", text="Error: job_id is required")]
+            
+        job = RESEARCH_JOBS.get(job_id)
+        if not job:
+            return [TextContent(type="text", text="Job not found")]
+            
+        if job["status"] == "running":
+            return [TextContent(type="text", text=f"Job {job_id} is still running. Please check again later.")]
+        elif job["status"] == "failed":
+             return [TextContent(type="text", text=f"Job {job_id} failed: {job.get('error')}")]
+        else:
+             # Completed
+             return [TextContent(type="text", text=job["result"])]
 
-    prompt = arguments.get("prompt")
-    if not prompt:
-        raise ValueError("Prompt is required")
+    if name == "deep_research":
+        prompt = arguments.get("prompt")
+        if not prompt:
+             raise ValueError("Prompt is required")
 
+        # Generate Job ID
+        import uuid
+        job_id = str(uuid.uuid4())[:8]
+        
+        # Start background task
+        # We use asyncio.create_task to run it independently of this request
+        task = asyncio.create_task(run_research_task(job_id, prompt))
+        
+        # Try to wait for it for 30s (Hybrid Sync/Async)
+        try:
+            print(f"DEBUG: Waiting for Job {job_id} (timeout 30s)")
+            # Wait for the SPECIFIC task
+            await asyncio.wait_for(asyncio.shield(task), timeout=30.0)
+            
+            # If we get here, task is done
+            # Retrieve result from storage
+            job = RESEARCH_JOBS.get(job_id)
+            if job and job["status"] == "completed":
+                return [TextContent(type="text", text=job["result"])]
+            elif job and job["status"] == "failed":
+                return [TextContent(type="text", text=f"Error: {job.get('error')}")]
+            else:
+                 return [TextContent(type="text", text="Error: Job Job finished but no result state found.")]
+                 
+        except asyncio.TimeoutError:
+            print(f"DEBUG: Job {job_id} timed out (sync compliance). Returning Async Job ID.")
+            # Do NOT cancel the task. Let it run.
+            return [TextContent(
+                type="text", 
+                text=f"Research is taking longer than expected. It is continuing in the background.\n\n**Job ID:** {job_id}\n\nPlease use the `get_research_status` tool with this Job ID to retrieve the final report when it is ready."
+            )]
+        except Exception as e:
+            return [TextContent(type="text", text=f"Error launching research: {str(e)}")]
 
-    try:
-        # ICA Timeout Protection: Wrap execution in 30s timeout (Safe buffer for 60s limit)
-        print(f"DEBUG: Starting research for prompt: {prompt[:50]}")
-        result = await asyncio.wait_for(run_deep_research(prompt), timeout=30.0)
-        return [TextContent(type="text", text=result)]
-    except asyncio.TimeoutError:
-        print("MCP Tool Timeout: 30s limit reached")
-        # Return a partial result / friendly message instead of creating an error
-        return [TextContent(
-            type="text", 
-            text="Research is taking longer than expected (timed out after 30s). It is still running in the background. Please try a more specific query."
-        )]
-    except Exception as e:
-        print(f"Tool execution failed: {e}")
-        return [TextContent(type="text", text=f"Error executing research: {str(e)}")]
+    raise ValueError(f"Unknown tool: {name}")
+
 
 
 
