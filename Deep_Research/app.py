@@ -300,23 +300,29 @@ async def handle_sse(request: Request):
             )
         )
         
+
         try:
              # 3. Consume output from the server and yield as SSE
              async with output_recv:
-                 async for message in output_recv:
-                     # message is a JSON-RPC message object (or types.JSONRPCMessage)
-                     # We verify it's a valid SSE message format
-                     # Use standard server-sent events format: event: message\ndata: ...
+                 async for session_message in output_recv:
+                     # The mcp server yields SessionMessage objects or Exceptions
                      
-                     if isinstance(message, Exception):
-                         yield {"event": "error", "data": str(message)}
+                     if isinstance(session_message, Exception):
+                         yield {"event": "error", "data": str(session_message)}
                          continue
-                         
+                     
+                     # Unwrap SessionMessage to get the actual JSONRPCMessage
+                     # We must verify if it's a SessionMessage or already unwrapped (defensive)
+                     if hasattr(session_message, "message"):
+                         message_obj = session_message.message
+                     else:
+                         message_obj = session_message
+                     
                      # Serialize JSON-RPC message to string
                      try:
-                        json_str = message.model_dump_json() # Pydantic v2
+                        json_str = message_obj.model_dump_json(by_alias=True, exclude_none=True)
                      except AttributeError:
-                        json_str = message.json() # Pydantic v1 fallback
+                        json_str = message_obj.json(by_alias=True, exclude_none=True)
                      
                      # ICA/Spec expects event: message
                      yield {"event": "message", "data": json_str}
@@ -361,7 +367,6 @@ async def handle_messages(request: Request):
         body = await request.json()
         
         # Parse into MCP JSONRPCMessage
-
         import mcp.types as types
         from pydantic import TypeAdapter
         from mcp.shared.message import SessionMessage
@@ -369,6 +374,7 @@ async def handle_messages(request: Request):
         message = TypeAdapter(types.JSONRPCMessage).validate_python(body)
         
         # Wrap in SessionMessage as expected by mcp.server.Server._receive_loop
+        # (Verified: SDK expects MemoryObjectReceiveStream[SessionMessage | Exception])
         session_message = SessionMessage(message=message)
         
         await input_sender.send(session_message)
