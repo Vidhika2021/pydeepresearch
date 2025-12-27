@@ -258,6 +258,7 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent | ImageConten
         return [TextContent(type="text", text=f"Error executing research: {str(e)}")]
 
 
+
 # ===== MCP SSE ENDPOINTS (MANUAL WIRING) =====
 
 # Session storage: Map session_id -> input_stream_sender (to send messages TO the server)
@@ -269,24 +270,24 @@ async def handle_sse(request: Request):
     """
     Manual SSE endpoint for MCP.
     """
-    # Create memory streams for bidirectional communication
-    # client_input: /messages -> input_send -> input_recv -> mcp_server
-    # server_output: mcp_server -> output_send -> output_recv -> /sse
-    
     input_send, input_recv = anyio.create_memory_object_stream(100)
     output_send, output_recv = anyio.create_memory_object_stream(100)
     
+    # Use 'sessionId' camelCase for ICA compatibility
     session_id = str(uuid.uuid4())
     web_server_sessions[session_id] = input_send
     
     print(f"Starting SSE session: {session_id}")
 
     async def sse_generator():
-        # 1. Send the "endpoint" event with the session URL
-        # The client uses this URl to post messages
+        # 1. Send the "endpoint" event with the ABSOLUTE session URL
+        # ICA requires absolute URL and camelCase sessionId
+        base_url = str(request.base_url).rstrip("/")
+        endpoint_url = f"{base_url}/messages?sessionId={session_id}"
+        
         yield {
              "event": "endpoint", 
-             "data": f"/messages?session_id={session_id}"
+             "data": endpoint_url
         }
         
         # 2. Start the MCP server loop in the background
@@ -307,25 +308,17 @@ async def handle_sse(request: Request):
                      # We verify it's a valid SSE message format
                      # Use standard server-sent events format: event: message\ndata: ...
                      
-                     # Simple mcp serialization:
                      if isinstance(message, Exception):
                          yield {"event": "error", "data": str(message)}
                          continue
                          
-                     # The mcp server run loop outputs fully formatted JSON-RPC messages/exceptions over the stream
-                     # We simply wrap them in the 'message' event standard
-                     
-                     # Note: mcp_server.run writes the *object* to the stream.
-                     # We need to serialize it to JSON string for SSE data.
-                     # Or does it write bytes/strings?
-                     # The SDK types say: run(read_stream: MemoryObjectReceiveStream[JSONRPCMessage | Exception], ...)
-                     # So valid messages are objects. We must serialize.
-                     
+                     # Serialize JSON-RPC message to string
                      try:
                         json_str = message.model_dump_json() # Pydantic v2
                      except AttributeError:
                         json_str = message.json() # Pydantic v1 fallback
                      
+                     # ICA/Spec expects event: message
                      yield {"event": "message", "data": json_str}
 
         except asyncio.CancelledError:
@@ -350,10 +343,15 @@ async def handle_messages(request: Request):
     """
     Forward client messages to the specific session's input stream.
     """
-    session_id = request.query_params.get("session_id") or request.query_params.get("sessionId")
+    # 1. Robust Session ID extraction
+    # Priority: Query Param (sessionId > session_id) > Header (mcp-session-id)
+    session_id = request.query_params.get("sessionId") or request.query_params.get("session_id")
     
     if not session_id:
-        return JSONResponse(status_code=400, content={"error": "Missing session_id"})
+        session_id = request.headers.get("mcp-session-id")
+        
+    if not session_id:
+        return JSONResponse(status_code=400, content={"error": "Missing sessionId parameter"})
         
     input_sender = web_server_sessions.get(session_id)
     if not input_sender:
@@ -363,18 +361,7 @@ async def handle_messages(request: Request):
         body = await request.json()
         
         # Parse into MCP JSONRPCMessage
-        # We need to identify correct type?
-        # Actually, mcp_server.run expects input to be JSONRPCMessage objects.
-        # We can use the Pydantic adapter or manually parse.
-        # The easiest way is to use the type adapter from mcp.types
-        
         import mcp.types as types
-        # Basic deserialization - we can try generic dict if the server accepts it?
-        # No, python mcp sdk is typed.
-        # We need to convert the dict 'body' into a JSONRPCMessage.
-        
-        # Safe catch-all parsing using Pydantic Adapter for the Union type?
-        # mcp.types.JSONRPCMessage is a Union.
         from pydantic import TypeAdapter
         message = TypeAdapter(types.JSONRPCMessage).validate_python(body)
         
@@ -383,4 +370,5 @@ async def handle_messages(request: Request):
         
     except Exception as e:
         print(f"Error handling message: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
