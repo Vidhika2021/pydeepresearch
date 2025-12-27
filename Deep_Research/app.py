@@ -361,11 +361,17 @@ async def handle_messages(request: Request):
         body = await request.json()
         
         # Parse into MCP JSONRPCMessage
+
         import mcp.types as types
         from pydantic import TypeAdapter
+        from mcp.shared.message import SessionMessage
+        
         message = TypeAdapter(types.JSONRPCMessage).validate_python(body)
         
-        await input_sender.send(message)
+        # Wrap in SessionMessage as expected by mcp.server.Server._receive_loop
+        session_message = SessionMessage(message=message)
+        
+        await input_sender.send(session_message)
         return JSONResponse(content={"status": "accepted"})
         
     except Exception as e:
