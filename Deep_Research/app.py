@@ -200,9 +200,18 @@ async def deep_research_sync(request: Request):
         return return_simple_message("Error: Please provide a prompt.")
 
     try:
-        # Run research and await result
-        report = await run_deep_research(prompt)
-        return return_simple_message(report)
+        logger.info(f"Running deep research with prompt: {prompt}")
+        
+        # ICA Timeout Protection: Wrap execution in 50s timeout
+        # If research takes > 50s, return a partial/status message instead of crashing
+        try:
+            result = await asyncio.wait_for(run_deep_research(prompt), timeout=50.0)
+        except asyncio.TimeoutError:
+            logger.warning("Deep research timed out after 50s")
+            return return_simple_message("Research is taking longer than expected. It is still running in the background, but we are returning this message to prevent a timeout. Please refine your query or try a more specific topic.")
+        
+        logger.info("Deep research completed")
+        return return_simple_message(result)
     except Exception as e:
         print(f"❌ Sync Research Failed: {e}")
         return return_simple_message(f"Research failed: {str(e)}")
@@ -251,8 +260,16 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent | ImageConten
         raise ValueError("Prompt is required")
 
     try:
-        report = await run_deep_research(prompt)
-        return [TextContent(type="text", text=report)]
+        # ICA Timeout Protection: Wrap execution in 55s timeout (MCP Handler)
+        result = await asyncio.wait_for(run_deep_research(prompt), timeout=55.0)
+        return [TextContent(type="text", text=result)]
+    except asyncio.TimeoutError:
+        print("MCP Tool Timeout: 55s limit reached")
+        # Return a partial result / friendly message instead of creating an error
+        return [TextContent(
+            type="text", 
+            text="Research is taking longer than expected (timed out after 55s). It is still running in the background. Please try a more specific query."
+        )]
     except Exception as e:
         print(f"Tool execution failed: {e}")
         return [TextContent(type="text", text=f"Error executing research: {str(e)}")]
