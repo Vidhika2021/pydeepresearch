@@ -259,16 +259,18 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent | ImageConten
     if not prompt:
         raise ValueError("Prompt is required")
 
+
     try:
-        # ICA Timeout Protection: Wrap execution in 55s timeout (MCP Handler)
-        result = await asyncio.wait_for(run_deep_research(prompt), timeout=55.0)
+        # ICA Timeout Protection: Wrap execution in 30s timeout (Safe buffer for 60s limit)
+        print(f"DEBUG: Starting research for prompt: {prompt[:50]}")
+        result = await asyncio.wait_for(run_deep_research(prompt), timeout=30.0)
         return [TextContent(type="text", text=result)]
     except asyncio.TimeoutError:
-        print("MCP Tool Timeout: 55s limit reached")
+        print("MCP Tool Timeout: 30s limit reached")
         # Return a partial result / friendly message instead of creating an error
         return [TextContent(
             type="text", 
-            text="Research is taking longer than expected (timed out after 55s). It is still running in the background. Please try a more specific query."
+            text="Research is taking longer than expected (timed out after 30s). It is still running in the background. Please try a more specific query."
         )]
     except Exception as e:
         print(f"Tool execution failed: {e}")
