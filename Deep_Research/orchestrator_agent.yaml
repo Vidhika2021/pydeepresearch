@@ -1,0 +1,121 @@
+api-version: aiis.ibm.com/v1alpha1
+kind: agent-orchestration
+metadata:
+  name: "deep-research-hierarchical-system"
+  description: "Deep Research orchestration system using MCP tools with polling support"
+  version: "v1"
+  owner: "developer@example.com"
+  platform: "ica"
+  framework: "autogen"
+
+spec:
+  description: "Orchestrator agent for long-running deep research tasks via MCP"
+  
+  orchestration:
+    type: "supervisor"
+    supervisor: "deep-research-manager"
+
+  models:
+    - name: "gpt-4o"
+      provider: "ica"
+      model-id: "gpt-4o"
+      config:
+        temperature: 0.7
+        max-tokens: 2000
+
+  # CRITICAL: Tools MUST be defined here for the Supervisor to see them.
+  tools:
+    - name: "deep-research-tool"
+      type: "mcp"
+      tool-id: "deep-research-mcp-deep-research"
+      description: "Initiates deep research on a company. Returns a Job ID if long-running."
+      config:
+        parameters:
+          type: "object"
+          properties:
+            prompt:
+              type: "string"
+              description: "The topic or question to research deeply"
+          required: ["prompt"]
+
+    - name: "research-status-tool"
+      type: "mcp"
+      tool-id: "deep-research-mcp-get-research-status"
+      description: "Checks status of a research job using its Job ID"
+      config:
+        parameters:
+          type: "object"
+          properties:
+            job_id:
+              type: "string"
+              description: "The Job ID returned by the research tool"
+          required: ["job_id"]
+
+  agents:
+    - name: "deep-research-manager"
+      type: "supervisor"
+      role: "Research Orchestrator"
+      goal: "Coordinate deep research tasks and ensure completion via polling"
+      
+      # REINFORCED instructions to prevent hallucination
+      instructions: |
+        You are an advanced Research Orchestrator.
+        
+        CRITICAL: You have NO internal knowledge about companies.
+        You CANNOT answer any question without using the Deep Research Tool.
+        
+        YOUR WORKFLOW:
+        1. When asked to research a topic, call the `deep-research-tool`.
+        2. IF the tool returns a "Job ID" message (e.g. "Job ID: 1234..."):
+           - You MUST immediately recognize this is a long-running task.
+           - Enter a POLLING LOOP:
+             a. Call `research-status-tool` with the `job_id`.
+             b. If status is "running", inform the user "Research is still running... checking again in 20 seconds", WAIT 20 seconds, then repeat step (a).
+             c. If status is "completed", stop looping and present the Final Report.
+        3. Do not ask the user to poll. YOU must do the polling until the final answer is ready.
+      model: "gpt-4o"
+      
+      # CRITICAL: Tools MUST be bound to the agent here.
+      tools: ["deep-research-tool", "research-status-tool"]
+      
+      security:
+        permissions: ["read", "write", "execute"]
+      
+      overrides:
+        autogen-type: "AssistantAgent"
+        config:
+          system_message: |
+             You are an advanced Research Orchestrator.
+             
+             CRITICAL: You have NO internal knowledge about companies.
+             You CANNOT answer any question without using the Deep Research Tool.
+             
+             YOUR WORKFLOW:
+             1. When asked to research a topic, call the `deep-research-tool`.
+             2. IF the tool returns a "Job ID" message (e.g. "Job ID: 1234..."):
+                - You MUST immediately recognize this is a long-running task.
+                - Enter a POLLING LOOP:
+                  a. Call `research-status-tool` with the `job_id`.
+                  b. If status is "running", inform the user "Research is still running... checking again in 20 seconds", WAIT 20 seconds, then repeat step (a).
+                  c. If status is "completed", stop looping and present the Final Report.
+             3. Do not ask the user to poll. YOU must do the polling until the final answer is ready.
+          description: "Orchestrator for Deep Research MCP Tools"
+          mcp:
+            # We explicitly define tools here for the tool mapper
+            tools:
+              - name: "deep_research"
+                args: ["prompt"]
+              - name: "get_research_status"
+                args: ["job_id"]
+            # We also include server config if supported by the platform
+            servers:
+              - server_id: "deep-research-v1"
+                name: "deep-research"
+                endpoint: "https://deep-research-api-mrqq.onrender.com/sse"
+                transport: "sse"
+          llm_config:
+            config_list:
+              - model: "gpt-4o"
+                config:
+                   temperature: 0.7
+                   max_tokens: 2000

@@ -356,7 +356,7 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent | ImageConten
             # Do NOT cancel the task. Let it run.
             return [TextContent(
                 type="text", 
-                text=f"research_started: True\njob_id: {job_id}\nstatus: running\n\nSYSTEM INSTRUCTION: The research is continuing in the background. You MUST now call the tool `get_research_status` with job_id='{job_id}' to retrieve the progress. Repeat this every 10 seconds until the status is 'completed'."
+                text=f"job_id: {job_id}\nstatus: running\nresearch_started: True\n\nSYSTEM INSTRUCTION: The research is continuing in the background. You MUST now call the tool `get_research_status` with job_id='{job_id}' to retrieve the progress. Repeat this every 10 seconds until the status is 'completed'."
             )]
         except Exception as e:
             return [TextContent(type="text", text=f"Error launching research: {str(e)}")]
