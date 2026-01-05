@@ -240,7 +240,7 @@ async def research_stream(job_id: str, request: Request):
 
     async def gen():
         # Force flush headers immediately
-        yield f": {' ' * 1024}\n\n"
+        yield f": {' ' * 4096}\n\n"
         
         # Immediate hello (helps proxies)
         yield {"event": "status", "data": json.dumps({"message": "connected", "job_id": job_id})}
@@ -266,7 +266,14 @@ async def research_stream(job_id: str, request: Request):
             if event == "close":
                 break
 
-    return EventSourceResponse(gen())
+    return EventSourceResponse(
+        gen(),
+        headers={
+            "X-Accel-Buffering": "no",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive"
+        }
+    )
 
 
 # Global Job Tracking
@@ -557,11 +564,9 @@ async def handle_sse(request: Request):
              "data": endpoint_url
         }
         
-        # KEY FIX: Yield 1KB of "comment" padding to force Render/Nginx buffers to flush immediately.
+        # KEY FIX: Yield 4KB of "comment" padding to force Render/Nginx buffers to flush immediately.
         # SSE comments start with a colon.
-        yield f": {' ' * 1024}\n\n"
-        
-        await asyncio.sleep(0.1)  # Yield to loop
+        yield f": {' ' * 4096}\n\n"
         
         # 2. Start the MCP server loop in the background
         # It consumes from input_recv and writes to output_send
@@ -614,7 +619,14 @@ async def handle_sse(request: Request):
              except asyncio.CancelledError:
                  pass
 
-    return EventSourceResponse(sse_generator())
+    return EventSourceResponse(
+        sse_generator(),
+        headers={
+            "X-Accel-Buffering": "no",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive"
+        }
+    )
 
 
 @app.post("/messages")
