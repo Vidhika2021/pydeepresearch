@@ -239,6 +239,9 @@ async def research_stream(job_id: str, request: Request):
         raise HTTPException(status_code=404, detail="Unknown job_id")
 
     async def gen():
+        # Force flush headers immediately
+        yield f": {' ' * 1024}\n\n"
+        
         # Immediate hello (helps proxies)
         yield {"event": "status", "data": json.dumps({"message": "connected", "job_id": job_id})}
 
