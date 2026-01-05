@@ -499,14 +499,16 @@ async def handle_sse(request: Request):
             
         endpoint_url = f"{base_url}/messages?sessionId={session_id}"
         
-        # Yield a comment/ping to force headers flush immediately
-        yield {"event": "ping", "data": "start"}
-        
+        # Spec Requirement: 'endpoint' MUST be the first event.
         yield {
              "event": "endpoint", 
              "data": endpoint_url
         }
-        await asyncio.sleep(0.5)  # Force flush
+        
+        # Flush headers immediately with a comment/ping
+        yield {"event": "ping", "data": "start"}
+        
+        await asyncio.sleep(0.1)  # Yield to loop to flush buffer
         
         # 2. Start the MCP server loop in the background
         # It consumes from input_recv and writes to output_send
