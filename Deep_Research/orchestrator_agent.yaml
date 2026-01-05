@@ -73,6 +73,9 @@ spec:
              b. If status is "running", inform the user "Research is still running... checking again in 20 seconds", WAIT 20 seconds, then repeat step (a).
              c. If status is "completed", stop looping and present the Final Report.
         3. Do not ask the user to poll. YOU must do the polling until the final answer is ready.
+        
+        CRITICAL: If the user provides a NEW topic or company, you MUST start a FRESH search.
+        WARN: Do NOT use Job IDs from previous conversation turns. Always use the Job ID returned by the MOST RECENT `deep_research` tool call.
       model: "gpt-4o"
       
       # CRITICAL: Tools MUST be bound to the agent here.
@@ -99,6 +102,9 @@ spec:
                   b. If status is "running", inform the user "Research is still running... checking again in 20 seconds", WAIT 20 seconds, then repeat step (a).
                   c. If status is "completed", stop looping and present the Final Report.
              3. Do not ask the user to poll. YOU must do the polling until the final answer is ready.
+             
+             CRITICAL: If the user provides a NEW topic or company, you MUST start a FRESH search.
+             WARN: Do NOT use Job IDs from previous conversation turns. Always use the Job ID returned by the MOST RECENT `deep_research` tool call.
           description: "Orchestrator for Deep Research MCP Tools"
           mcp:
             # We explicitly define tools here for the tool mapper

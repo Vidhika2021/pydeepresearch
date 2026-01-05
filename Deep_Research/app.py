@@ -445,7 +445,9 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent | ImageConten
 
         # Generate Job ID
         import uuid
+        import datetime
         job_id = str(uuid.uuid4())[:8]
+        timestamp = datetime.datetime.now().isoformat()
         
         # Start background task
         # We use asyncio.create_task to run it independently of this request
@@ -465,7 +467,8 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent | ImageConten
                     "kind": "deep_research",
                     "job_id": job_id,
                     "status": "completed",
-                    "result": job["result"]
+                    "result": job["result"],
+                    "timestamp": timestamp
                 }
                 return [TextContent(type="text", text=json.dumps(payload))]
             elif job and job["status"] == "failed":
@@ -473,7 +476,8 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent | ImageConten
                     "kind": "deep_research",
                     "job_id": job_id,
                     "status": "failed",
-                    "error": job.get("error")
+                    "error": job.get("error"),
+                    "timestamp": timestamp
                 }
                 return [TextContent(type="text", text=json.dumps(payload))]
             else:
@@ -481,7 +485,8 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent | ImageConten
                     "kind": "deep_research",
                     "job_id": job_id,
                     "status": "unknown",
-                    "error": "Job finished but no result state found."
+                    "error": "Job finished but no result state found.",
+                    "timestamp": timestamp
                  }
                  return [TextContent(type="text", text=json.dumps(payload))]
                  
@@ -494,7 +499,8 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent | ImageConten
                 "job_id": job_id,
                 "status": "running",
                 "stream_path": f"/research/stream/{job_id}",
-                "next_action": "Call get_research_status with this job_id until completed."
+                "next_action": "Call get_research_status with this job_id until completed.",
+                "timestamp": timestamp
             }
             return [TextContent(
                 type="text", 
