@@ -475,13 +475,7 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent | ImageConten
             type="text", 
             text=json.dumps(payload)
         )]
-        except Exception as e:
-            return [TextContent(type="text", text=json.dumps({
-                "kind": "deep_research",
-                "job_id": job_id if 'job_id' in locals() else "error",
-                "status": "failed",
-                "error": f"Error launching research: {str(e)}"
-            }))]
+
 
     raise ValueError(f"Unknown tool: {name}")
 
