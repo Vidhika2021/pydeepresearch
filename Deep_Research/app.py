@@ -505,10 +505,11 @@ async def handle_sse(request: Request):
              "data": endpoint_url
         }
         
-        # Flush headers immediately with a comment/ping
-        yield {"event": "ping", "data": "start"}
+        # KEY FIX: Yield 1KB of "comment" padding to force Render/Nginx buffers to flush immediately.
+        # SSE comments start with a colon.
+        yield f": {' ' * 1024}\n\n"
         
-        await asyncio.sleep(0.1)  # Yield to loop to flush buffer
+        await asyncio.sleep(0.1)  # Yield to loop
         
         # 2. Start the MCP server loop in the background
         # It consumes from input_recv and writes to output_send
