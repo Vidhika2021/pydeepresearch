@@ -415,17 +415,36 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent | ImageConten
             # Retrieve result from storage
             job = RESEARCH_JOBS.get(job_id)
             if job and job["status"] == "completed":
-                return [TextContent(type="text", text=job["result"])]
+                payload = {
+                    "kind": "deep_research",
+                    "job_id": job_id,
+                    "status": "completed",
+                    "result": job["result"]
+                }
+                return [TextContent(type="text", text=json.dumps(payload))]
             elif job and job["status"] == "failed":
-                return [TextContent(type="text", text=f"Error: {job.get('error')}")]
+                payload = {
+                    "kind": "deep_research",
+                    "job_id": job_id,
+                    "status": "failed",
+                    "error": job.get("error")
+                }
+                return [TextContent(type="text", text=json.dumps(payload))]
             else:
-                 return [TextContent(type="text", text="Error: Job finished but no result state found.")]
+                 payload = {
+                    "kind": "deep_research",
+                    "job_id": job_id,
+                    "status": "unknown",
+                    "error": "Job finished but no result state found."
+                 }
+                 return [TextContent(type="text", text=json.dumps(payload))]
                  
         except asyncio.TimeoutError:
             print(f"DEBUG: Job {job_id} timed out (sync compliance). Returning Async Job ID.")
             # Do NOT cancel the task. Let it run.
             import json
-            output_data = {
+            payload = {
+                "kind": "deep_research",
                 "job_id": job_id,
                 "status": "running",
                 "stream_path": f"/research/stream/{job_id}",
@@ -433,10 +452,15 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent | ImageConten
             }
             return [TextContent(
                 type="text", 
-                text=json.dumps(output_data, indent=2)
+                text=json.dumps(payload, indent=2)
             )]
         except Exception as e:
-            return [TextContent(type="text", text=f"Error launching research: {str(e)}")]
+            return [TextContent(type="text", text=json.dumps({
+                "kind": "deep_research",
+                "job_id": job_id if 'job_id' in locals() else "error",
+                "status": "failed",
+                "error": f"Error launching research: {str(e)}"
+            }))]
 
     raise ValueError(f"Unknown tool: {name}")
 
