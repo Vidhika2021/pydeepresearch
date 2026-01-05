@@ -473,6 +473,7 @@ async def handle_sse(request: Request):
              "event": "endpoint", 
              "data": endpoint_url
         }
+        await asyncio.sleep(0.1)  # Force flush
         
         # 2. Start the MCP server loop in the background
         # It consumes from input_recv and writes to output_send
