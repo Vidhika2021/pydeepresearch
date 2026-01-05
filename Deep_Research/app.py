@@ -458,61 +458,23 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent | ImageConten
         
         # Start background task
         # We use asyncio.create_task to run it independently of this request
-        task = asyncio.create_task(run_research_task(job_id, prompt))
+        asyncio.create_task(run_research_task(job_id, prompt))
         
-        # Try to wait for it for 5s (Immediate Async Mode)
-        try:
-            print(f"DEBUG: Waiting for Job {job_id} (timeout 2s)")
-            # Wait for the SPECIFIC task
-            await asyncio.wait_for(asyncio.shield(task), timeout=2.0)
-            
-            # If we get here, task is done
-            # Retrieve result from storage
-            job = RESEARCH_JOBS.get(job_id)
-            if job and job["status"] == "completed":
-                payload = {
-                    "kind": "deep_research",
-                    "job_id": job_id,
-                    "status": "completed",
-                    "result": job["result"],
-                    "timestamp": timestamp
-                }
-                return [TextContent(type="text", text=json.dumps(payload))]
-            elif job and job["status"] == "failed":
-                payload = {
-                    "kind": "deep_research",
-                    "job_id": job_id,
-                    "status": "failed",
-                    "error": job.get("error"),
-                    "timestamp": timestamp
-                }
-                return [TextContent(type="text", text=json.dumps(payload))]
-            else:
-                 payload = {
-                    "kind": "deep_research",
-                    "job_id": job_id,
-                    "status": "unknown",
-                    "error": "Job finished but no result state found.",
-                    "timestamp": timestamp
-                 }
-                 return [TextContent(type="text", text=json.dumps(payload))]
-                 
-        except asyncio.TimeoutError:
-            print(f"DEBUG: Job {job_id} timed out (sync compliance). Returning Async Job ID.")
-            # Do NOT cancel the task. Let it run.
-            import json
-            payload = {
-                "kind": "deep_research",
-                "job_id": job_id,
-                "status": "running",
-                "stream_path": f"/research/stream/{job_id}",
-                "next_action": "Call get_research_status with this job_id until completed.",
-                "timestamp": timestamp
-            }
-            return [TextContent(
-                type="text", 
-                text=json.dumps(payload)
-            )]
+        print(f"DEBUG: Job {job_id} dispatched (Zero-Wait)")
+
+        # IMMEDIATE RETURN: Do not wait. Prevent client timeouts.
+        payload = {
+            "kind": "deep_research",
+            "job_id": job_id,
+            "status": "running",
+            "stream_path": f"/research/stream/{job_id}",
+            "next_action": "Call get_research_status with this job_id until completed.",
+            "timestamp": timestamp
+        }
+        return [TextContent(
+            type="text", 
+            text=json.dumps(payload)
+        )]
         except Exception as e:
             return [TextContent(type="text", text=json.dumps({
                 "kind": "deep_research",
