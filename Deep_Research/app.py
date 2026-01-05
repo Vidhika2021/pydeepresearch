@@ -270,7 +270,46 @@ async def research_stream(job_id: str, request: Request):
 
 
 # Global Job Tracking
+JOBS_FILE = "jobs_storage.json"
+import os
+
+def save_jobs():
+    """Persist jobs to disk."""
+    serializable_jobs = {}
+    for jid, job in RESEARCH_JOBS.items():
+        # Exclude asyncio.Queue and other non-serializable objects
+        serializable_jobs[jid] = {k: v for k, v in job.items() if k != "queue"}
+    
+    try:
+        with open(JOBS_FILE, "w") as f:
+            json.dump(serializable_jobs, f)
+    except Exception as e:
+        print(f"Error saving jobs: {e}")
+
+def load_jobs():
+    """Load jobs from disk."""
+    global RESEARCH_JOBS
+    if os.path.exists(JOBS_FILE):
+        try:
+            with open(JOBS_FILE, "r") as f:
+                loaded = json.load(f)
+                for jid, job in loaded.items():
+                    # Restore Queue
+                    job["queue"] = asyncio.Queue()
+                    # If it was running when saved (and we are restarting), mark it as failed/interrupted
+                    if job["status"] == "running":
+                        job["status"] = "failed"
+                        job["error"] = "Server restarted while job was running."
+                        job["result"] = "Job interrupted by server restart."
+                    RESEARCH_JOBS[jid] = job
+            print(f"Loaded {len(RESEARCH_JOBS)} jobs from disk.")
+        except Exception as e:
+            print(f"Error loading jobs: {e}")
+
+# Global Job Tracking
 RESEARCH_JOBS: Dict[str, Dict[str, Any]] = {}
+# Load jobs on startup
+load_jobs()
 
 
 def _ensure_job(job_id: str) -> Dict[str, Any]:
@@ -298,6 +337,7 @@ async def run_research_task(job_id: str, prompt: str):
     job = _ensure_job(job_id)
     job["status"] = "running"
     job["result"] = None
+    save_jobs()  # Save start state
     job["error"] = None
     job["logs"] = []
 
@@ -319,11 +359,14 @@ async def run_research_task(job_id: str, prompt: str):
         await _emit(job_id, "status", {"message": "Job completed", "status": "completed"})
         
         print(f"DEBUG: Job {job_id} completed successfully")
+        save_jobs()  # Save completion
+
     except Exception as e:
         print(f"DEBUG: Job {job_id} failed: {e}")
         RESEARCH_JOBS[job_id]["status"] = "failed"
         RESEARCH_JOBS[job_id]["error"] = str(e)
         await _emit(job_id, "error", {"message": str(e)})
+        save_jobs()  # Save error state
 
     finally:
         # Signal the stream to end (client can close)
