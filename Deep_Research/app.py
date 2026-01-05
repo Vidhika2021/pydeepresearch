@@ -369,7 +369,7 @@ async def list_tools() -> list[Tool]:
 @mcp_server.call_tool()
 async def call_tool(name: str, arguments: Any) -> list[TextContent | ImageContent | EmbeddedResource]:
     if name == "ping":
-        return [TextContent(type="text", text="pong")]
+        return [TextContent(type="text", text="pong v2")]
 
     if name == "get_research_status":
         job_id = arguments.get("job_id")
@@ -452,7 +452,7 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent | ImageConten
             }
             return [TextContent(
                 type="text", 
-                text=json.dumps(payload, indent=2)
+                text=json.dumps(payload)
             )]
         except Exception as e:
             return [TextContent(type="text", text=json.dumps({
