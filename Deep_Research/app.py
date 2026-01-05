@@ -491,13 +491,22 @@ async def handle_sse(request: Request):
         # 1. Send the "endpoint" event with the ABSOLUTE session URL
         # ICA requires absolute URL and camelCase sessionId
         base_url = str(request.base_url).rstrip("/")
+        
+        # FIX: Render terminates SSL, so typically request.base_url sees http.
+        # We must force https if we are not on localhost/127.0.0.1
+        if "localhost" not in base_url and "127.0.0.1" not in base_url:
+            base_url = base_url.replace("http://", "https://")
+            
         endpoint_url = f"{base_url}/messages?sessionId={session_id}"
+        
+        # Yield a comment/ping to force headers flush immediately
+        yield {"event": "ping", "data": "start"}
         
         yield {
              "event": "endpoint", 
              "data": endpoint_url
         }
-        await asyncio.sleep(0.1)  # Force flush
+        await asyncio.sleep(0.5)  # Force flush
         
         # 2. Start the MCP server loop in the background
         # It consumes from input_recv and writes to output_send
