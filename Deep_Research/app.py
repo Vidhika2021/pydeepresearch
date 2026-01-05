@@ -503,10 +503,6 @@ async def handle_sse(request: Request):
     print(f"Starting SSE session: {session_id}")
 
     async def sse_generator():
-        # KEY FIX: Yield 4KB of "comment" padding to force Render/Nginx buffers to flush immediately.
-        # SSE comments start with a colon.
-        yield f": {' ' * 4096}\n\n"
-
         # 1. Send the "endpoint" event with the ABSOLUTE session URL
         # ICA requires absolute URL and camelCase sessionId
         base_url = str(request.base_url).rstrip("/")
@@ -523,6 +519,10 @@ async def handle_sse(request: Request):
              "event": "endpoint", 
              "data": endpoint_url
         }
+        
+        # KEY FIX: Yield 4KB of "comment" padding to force Render/Nginx buffers to flush immediately.
+        # SSE comments start with a colon.
+        yield f": {' ' * 4096}\n\n"
         
         # 2. Start the MCP server loop in the background
         # It consumes from input_recv and writes to output_send
