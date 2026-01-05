@@ -381,7 +381,7 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent | ImageConten
             
         job = RESEARCH_JOBS.get(job_id)
         if not job:
-            return [TextContent(type="text", text="Job not found")]
+            return [TextContent(type="text", text=f"Job not found (Requested ID: '{job_id}'). Server may have restarted.")]
             
         if job["status"] == "running":
             # Get latest log
