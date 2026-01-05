@@ -369,7 +369,7 @@ async def list_tools() -> list[Tool]:
 @mcp_server.call_tool()
 async def call_tool(name: str, arguments: Any) -> list[TextContent | ImageContent | EmbeddedResource]:
     if name == "ping":
-        return [TextContent(type="text", text="pong v2")]
+        return [TextContent(type="text", text="pong v3")]
 
     if name == "get_research_status":
         job_id = arguments.get("job_id")
@@ -448,7 +448,7 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent | ImageConten
                 "job_id": job_id,
                 "status": "running",
                 "stream_path": f"/research/stream/{job_id}",
-                "instruction": f"SYSTEM INSTRUCTION: The research is continuing in the background. You MUST now call the tool `get_research_status` with job_id='{job_id}' to retrieve the progress. Repeat this every 10 seconds until the status is 'completed'."
+                "next_action": "Call get_research_status with this job_id until completed."
             }
             return [TextContent(
                 type="text", 
