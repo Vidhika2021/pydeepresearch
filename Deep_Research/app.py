@@ -7,9 +7,10 @@ from enum import Enum
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
 
-from fastapi import FastAPI, BackgroundTasks, Request
+from fastapi import FastAPI, BackgroundTasks, Request, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+import json
 from service import run_deep_research
 
 
@@ -231,30 +232,99 @@ from starlette.responses import JSONResponse
 
 
 # Global Job Tracking
+@app.get("/research/stream/{job_id}")
+async def research_stream(job_id: str, request: Request):
+    job = RESEARCH_JOBS.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Unknown job_id")
+
+    async def gen():
+        # Immediate hello (helps proxies)
+        yield {"event": "status", "data": json.dumps({"message": "connected", "job_id": job_id})}
+
+        # If there are already logs, optionally replay last few:
+        logs = job.get("logs", [])
+        for msg in logs[-5:]:
+            yield {"event": "progress", "data": json.dumps({"message": msg})}
+
+        q: asyncio.Queue = job["queue"]
+
+        while True:
+            # If client disconnects, stop
+            if await request.is_disconnected():
+                break
+
+            item = await q.get()  # {"event": "...", "payload": {...}}
+            event = item.get("event", "message")
+            payload = item.get("payload", {})
+
+            yield {"event": event, "data": json.dumps(payload)}
+
+            if event == "close":
+                break
+
+    return EventSourceResponse(gen())
+
+
+# Global Job Tracking
 RESEARCH_JOBS: Dict[str, Dict[str, Any]] = {}
+
+
+def _ensure_job(job_id: str) -> Dict[str, Any]:
+    job = RESEARCH_JOBS.get(job_id)
+    if job is None:
+        job = {"status": "running", "result": None, "logs": [], "error": None, "queue": asyncio.Queue()}
+        RESEARCH_JOBS[job_id] = job
+    if "queue" not in job or job["queue"] is None:
+        job["queue"] = asyncio.Queue()
+    return job
+
+
+async def _emit(job_id: str, event: str, payload: Dict[str, Any]):
+    job = _ensure_job(job_id)
+    msg = {"event": event, "payload": payload}
+    # keep a small log too (optional)
+    job["logs"].append(payload.get("message", ""))
+    await job["queue"].put(msg)
 
 
 async def run_research_task(job_id: str, prompt: str):
     """
     Background task wrapper to update job status.
     """
-    RESEARCH_JOBS[job_id] = {"status": "running", "result": None, "logs": []}
+    job = _ensure_job(job_id)
+    job["status"] = "running"
+    job["result"] = None
+    job["error"] = None
+    job["logs"] = []
+
+    await _emit(job_id, "status", {"message": "Job started", "status": "running"})
     
     async def log_callback(msg: str):
-        # Keep only last 10 logs to save memory, or just append
-        RESEARCH_JOBS[job_id]["logs"].append(msg)
+        # Push incremental updates to the SSE stream
+        await _emit(job_id, "progress", {"message": msg})
     
     try:
         print(f"DEBUG: Job {job_id} started via background task")
         # Pass callback to service
         result = await run_deep_research(prompt, status_callback=log_callback)
+        
         RESEARCH_JOBS[job_id]["status"] = "completed"
         RESEARCH_JOBS[job_id]["result"] = result
+        
+        await _emit(job_id, "final", {"report": result})
+        await _emit(job_id, "status", {"message": "Job completed", "status": "completed"})
+        
         print(f"DEBUG: Job {job_id} completed successfully")
     except Exception as e:
         print(f"DEBUG: Job {job_id} failed: {e}")
         RESEARCH_JOBS[job_id]["status"] = "failed"
         RESEARCH_JOBS[job_id]["error"] = str(e)
+        await _emit(job_id, "error", {"message": str(e)})
+
+    finally:
+        # Signal the stream to end (client can close)
+        await _emit(job_id, "close", {"message": "stream_end"})
 
 mcp_server = Server("deep-research")
 
@@ -358,6 +428,7 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent | ImageConten
             output_data = {
                 "job_id": job_id,
                 "status": "running",
+                "stream_path": f"/research/stream/{job_id}",
                 "instruction": f"SYSTEM INSTRUCTION: The research is continuing in the background. You MUST now call the tool `get_research_status` with job_id='{job_id}' to retrieve the progress. Repeat this every 10 seconds until the status is 'completed'."
             }
             return [TextContent(
