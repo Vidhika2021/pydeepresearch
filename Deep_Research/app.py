@@ -453,9 +453,9 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent | ImageConten
         
         # Try to wait for it for 5s (Immediate Async Mode)
         try:
-            print(f"DEBUG: Waiting for Job {job_id} (timeout 5s)")
+            print(f"DEBUG: Waiting for Job {job_id} (timeout 2s)")
             # Wait for the SPECIFIC task
-            await asyncio.wait_for(asyncio.shield(task), timeout=5.0)
+            await asyncio.wait_for(asyncio.shield(task), timeout=2.0)
             
             # If we get here, task is done
             # Retrieve result from storage
