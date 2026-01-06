@@ -13,6 +13,11 @@ from pydantic import BaseModel, Field
 import json
 from service import run_deep_research
 
+import logging
+
+logger = logging.getLogger("deep-research")
+logging.basicConfig(level=logging.INFO)
+
 
 class JobStatus(str, Enum):
     QUEUED = "queued"
