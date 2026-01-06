@@ -232,6 +232,26 @@ from starlette.responses import JSONResponse
 
 
 # Global Job Tracking
+from fastapi import HTTPException
+
+@app.get("/research/status/{job_id}")
+def get_research_status(job_id: str):
+    job = RESEARCH_JOBS.get(job_id)
+
+    if not job:
+        raise HTTPException(status_code=404, detail="Unknown job_id")
+
+    logs = job.get("logs", [])
+    latest_log = logs[-1] if logs else None
+
+    return {
+        "job_id": job_id,
+        "status": job.get("status"),   # running | completed | failed
+        "latest": latest_log,           # last progress message
+        "result": job.get("result"),    # final report (when done)
+        "error": job.get("error"),      # error if failed
+    }
+
 @app.get("/research/stream/{job_id}")
 async def research_stream(job_id: str, request: Request):
     job = RESEARCH_JOBS.get(job_id)
