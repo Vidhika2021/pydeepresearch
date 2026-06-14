@@ -46,16 +46,16 @@ def get_today_str() -> str:
 
 def get_model():
     """Base model for research brief generation."""
-    from langchain.chat_models import init_chat_model
+    from deep_research.utils import get_chat_model
 
-    return init_chat_model(model="openai:gpt-5")
+    return get_chat_model(model="gpt-4o")
 
 
 def get_creative_model():
     """Model for creative / draft report generation."""
-    from langchain.chat_models import init_chat_model
+    from deep_research.utils import get_chat_model
 
-    return init_chat_model(model="openai:gpt-5")
+    return get_chat_model(model="gpt-4o")
 
 
 # ===== WORKFLOW NODES =====
