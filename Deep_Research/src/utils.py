@@ -47,18 +47,35 @@ def get_current_dir() -> Path:
 # ===== CONFIGURATION (lazy-loaded models & clients) =====
 
 
-def get_summarization_model():
-    """Lazy-load summarization model AFTER environment variables are loaded."""
+def get_chat_model(model: str = "gpt-4o", max_tokens: int = None):
+    """Lazy-load chat model with custom environment/ICA overrides."""
+    import os
     from langchain.chat_models import init_chat_model
 
-    return init_chat_model(model="openai:gpt-5")
+    api_key = os.getenv("OPENAI_API_KEY", "sk-1b582adabcc54fae8ca0ba08463dc26a")
+    base_url = os.getenv("OPENAI_API_BASE", os.getenv("OPENAI_BASE_URL", "https://api.nextgen-beta.ica.ibm.com/ica/v1/chat-models"))
+
+    kwargs = {
+        "model": model,
+        "model_provider": "openai",
+        "api_key": api_key,
+        "base_url": base_url,
+    }
+    if max_tokens is not None:
+        # Cap max_tokens to 16384 as Azure/litellm endpoint limits it for gpt-4o
+        kwargs["max_tokens"] = min(max_tokens, 16384)
+
+    return init_chat_model(**kwargs)
+
+
+def get_summarization_model():
+    """Lazy-load summarization model AFTER environment variables are loaded."""
+    return get_chat_model(model="gpt-4o")
 
 
 def get_writer_model():
     """Lazy-load writer model AFTER environment variables are loaded."""
-    from langchain.chat_models import init_chat_model
-
-    return init_chat_model(model="openai:gpt-5", max_tokens=32000)
+    return get_chat_model(model="gpt-4o", max_tokens=32000)
 
 
 def get_tavily_client():
