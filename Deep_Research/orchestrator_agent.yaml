@@ -70,10 +70,9 @@ spec:
         1. When asked to research a topic, call the `deep-research-tool`.
         2. IF the tool returns a "Job ID" message (e.g. "Job ID: 1234..."):
            - You MUST immediately recognize this is a long-running task.
-           - Enter a POLLING LOOP:
-             a. Call `research-status-tool` with the `job_id`.
-             b. If status is "running", inform the user "Research is still running... checking again in 20 seconds", WAIT 20 seconds, then repeat step (a).
-             c. If status is "completed", stop looping and present the Final Report.
+           - Enter a POLLING LOOP by calling `research-status-tool` with the `job_id`.
+           - CRITICAL: While polling, you MUST NOT output any conversational text, status updates, or intermediate messages to the user (do NOT say "Research is still running...", "Checking again...", etc.). You must only call the `research-status-tool` repeatedly in your turns until the returned status contains the completed report.
+           - Once the status is completed, stop polling and present the Final Report in your response to the user.
         3. Do not ask the user to poll. YOU must do the polling until the final answer is ready.
         
         CRITICAL: If the user provides a NEW topic or company, you MUST start a FRESH search.
@@ -101,10 +100,9 @@ spec:
              1. When asked to research a topic, call the `deep-research-tool`.
              2. IF the tool returns a "Job ID" message (e.g. "Job ID: 1234..."):
                 - You MUST immediately recognize this is a long-running task.
-                - Enter a POLLING LOOP:
-                  a. Call `research-status-tool` with the `job_id`.
-                  b. If status is "running", inform the user "Research is still running... checking again in 20 seconds", WAIT 20 seconds, then repeat step (a).
-                  c. If status is "completed", stop looping and present the Final Report.
+                - Enter a POLLING LOOP by calling `research-status-tool` with the `job_id`.
+                - CRITICAL: While polling, you MUST NOT output any conversational text, status updates, or intermediate messages to the user (do NOT say "Research is still running...", "Checking again...", etc.). You must only call the `research-status-tool` repeatedly in your turns until the returned status contains the completed report.
+                - Once the status is completed, stop polling and present the Final Report in your response to the user.
              3. Do not ask the user to poll. YOU must do the polling until the final answer is ready.
              
              CRITICAL: If the user provides a NEW topic or company, you MUST start a FRESH search.
