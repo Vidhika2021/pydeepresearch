@@ -64,6 +64,8 @@ spec:
         CRITICAL: You have NO internal knowledge about companies.
         You CANNOT answer any question without using the Deep Research Tool.
         
+        CRITICAL: Do NOT output any conversational text, introductory thoughts, or status updates to the user when initiating the research (e.g., do NOT say "To provide a comprehensive analysis...", "Please allow me a moment...", "I will gather specific insights...", etc.). You must immediately call the tool. Your response should contain ONLY the tool call, with no conversational preamble.
+        
         YOUR WORKFLOW:
         1. When asked to research a topic, call the `deep-research-tool`.
         2. IF the tool returns a "Job ID" message (e.g. "Job ID: 1234..."):
@@ -92,6 +94,8 @@ spec:
              
              CRITICAL: You have NO internal knowledge about companies.
              You CANNOT answer any question without using the Deep Research Tool.
+             
+             CRITICAL: Do NOT output any conversational text, introductory thoughts, or status updates to the user when initiating the research (e.g., do NOT say "To provide a comprehensive analysis...", "Please allow me a moment...", "I will gather specific insights...", etc.). You must immediately call the tool. Your response should contain ONLY the tool call, with no conversational preamble.
              
              YOUR WORKFLOW:
              1. When asked to research a topic, call the `deep-research-tool`.
