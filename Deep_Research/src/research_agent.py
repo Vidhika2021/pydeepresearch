@@ -31,19 +31,17 @@ tools_by_name = {tool.name: tool for tool in tools}
 
 def get_model_with_tools():
     """Lazy-load main research model and bind tools AFTER env is loaded."""
-    from langchain.chat_models import init_chat_model
+    from deep_research.utils import get_chat_model
 
-    base_model = init_chat_model(model="openai:gpt-5")
+    base_model = get_chat_model(model="gpt-4o")
     return base_model.bind_tools(tools)
 
 
 def get_compress_model():
     """Lazy-load compression model AFTER env is loaded."""
-    from langchain.chat_models import init_chat_model
+    from deep_research.utils import get_chat_model
 
-    # You can swap to Anthropic here later if you want
-    return init_chat_model(model="openai:gpt-5", max_tokens=32000)
-    # return init_chat_model(model="anthropic:claude-sonnet-4-20250514", max_tokens=64000)
+    return get_chat_model(model="gpt-4o", max_tokens=32000)
 
 
 # ===== AGENT NODES =====
