@@ -68,7 +68,6 @@ except ImportError:
 SUPERVISOR_TOOL_SPECS = [
     ConductResearch,
     ResearchComplete,
-    think_tool,
     refine_draft_report,
 ]
 
