@@ -75,9 +75,9 @@ SUPERVISOR_TOOL_SPECS = [
 
 def get_supervisor_model_with_tools():
     """Lazy-load supervisor model and bind tools AFTER env & API keys are set."""
-    from langchain.chat_models import init_chat_model
+    from deep_research.utils import get_chat_model
 
-    base_model = init_chat_model(model="openai:gpt-5")
+    base_model = get_chat_model(model="gpt-4o")
     return base_model.bind_tools(SUPERVISOR_TOOL_SPECS)
 
 
