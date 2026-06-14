@@ -14,7 +14,7 @@ input through final report delivery.
 from langchain_core.messages import HumanMessage
 from langgraph.graph import StateGraph, START, END
 
-from deep_research.utils import get_today_str
+from deep_research.utils import get_today_str, get_writer_model
 from deep_research.prompts import (
     final_report_generation_with_helpfulness_insightfulness_hit_citation_prompt,
 )
@@ -27,15 +27,6 @@ from deep_research.research_agent_scope import (
 from deep_research.multi_agent_supervisor import supervisor_agent
 
 # ===== Config =====
-
-
-def get_writer_model():
-    """Lazy-load writer model AFTER env & API keys are set."""
-    from langchain.chat_models import init_chat_model
-
-    return init_chat_model(model="openai:gpt-5", max_tokens=32000)
-    # Alternative (commented in original):
-    # return init_chat_model(model="anthropic:claude-sonnet-4-20250514", max_tokens=64000)
 
 
 # ===== FINAL REPORT GENERATION =====
