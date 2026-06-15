@@ -88,11 +88,15 @@ async def background_deep_research(job_id: str, prompt: str):
             print(f"✅ Job {job_id} finished successfully.")
 
     except Exception as e:
-        print(f"❌ Job {job_id} failed: {e}")
+        import traceback
+        print(f"❌ Job {job_id} failed:")
+        traceback.print_exc()
+        
+        error_msg = str(e) if str(e).strip() else repr(e)
         if job_id in JOBS:
             JOBS[job_id].status = JobStatus.FAILED
-            JOBS[job_id].error = str(e)
-            JOBS[job_id].result = f"Failed: {str(e)}"
+            JOBS[job_id].error = error_msg
+            JOBS[job_id].result = f"Failed: {error_msg}"
 
 
 def is_job_id_missing(job_id: Optional[str]) -> bool:
@@ -219,8 +223,12 @@ async def deep_research_sync(request: Request):
         logger.info("Deep research completed")
         return return_simple_message(result)
     except Exception as e:
-        print(f"❌ Sync Research Failed: {e}")
-        return return_simple_message(f"Research failed: {str(e)}")
+        import traceback
+        print("❌ Sync Research Failed:")
+        traceback.print_exc()
+        
+        error_msg = str(e) if str(e).strip() else repr(e)
+        return return_simple_message(f"Research failed: {error_msg}")
 
 
 
@@ -394,10 +402,14 @@ async def run_research_task(job_id: str, prompt: str):
         save_jobs()  # Save completion
 
     except Exception as e:
-        print(f"DEBUG: Job {job_id} failed: {e}")
+        import traceback
+        print(f"DEBUG: Job {job_id} failed:")
+        traceback.print_exc()
+        
+        error_msg = str(e) if str(e).strip() else repr(e)
         RESEARCH_JOBS[job_id]["status"] = "failed"
-        RESEARCH_JOBS[job_id]["error"] = str(e)
-        await _emit(job_id, "error", {"message": str(e)})
+        RESEARCH_JOBS[job_id]["error"] = error_msg
+        await _emit(job_id, "error", {"message": error_msg})
         save_jobs()  # Save error state
 
     finally:
