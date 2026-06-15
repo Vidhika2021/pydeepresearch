@@ -151,6 +151,7 @@ Please follow these guidelines to create your summary:
 5. Preserve any lists or step-by-step instructions if present.
 6. Include relevant dates, names, and locations that are crucial to understanding the content.
 7. Summarize lengthy explanations while keeping the core message intact.
+8. **Strict Temporal and Financial Accuracy**: Ensure that every single financial metric, number, profit, or statistic is explicitly coupled with its exact fiscal year or period (e.g. distinguishing H1 2025 from H1 2026, or FY2024 from FY2025). Never summarize a number without stating the exact year/period it belongs to. Do not confuse past year statistics with current or future years.
 
 When handling different types of content:
 
@@ -286,6 +287,7 @@ The think_tool calls contain strategic reflections and decision-making notes tha
 4. You should include a "Sources" section at the end of the report that lists all of the sources the researcher found with corresponding citations, cited against statements in the report.
 5. Make sure to include ALL of the sources that the researcher gathered in the report, and how they were used to answer the question!
 6. It's really important not to lose any sources. A later LLM will be used to merge this report with others, so having all of the sources is critical.
+7. **Strict Temporal and Financial Accuracy**: When cleaning and grouping findings, ensure every statistic, metric, or number remains strictly coupled to its exact date or fiscal year (e.g., distinguishing H1 2025 from H1 2026). Do not mix, blend, or attribute numbers from different periods.
 </Guidelines>
 
 <Output Format>
@@ -350,6 +352,7 @@ Please create a detailed answer to the overall research brief that:
 3. References relevant sources using [Title](URL) format
 4. Provides a balanced, thorough analysis. Be as comprehensive as possible, and include all information that is relevant to the overall research question. People are using you for deep research and will expect detailed, comprehensive answers.
 5. Includes a "Sources" section at the end with all referenced links
+6. **Strict Temporal and Financial Accuracy**: Meticulously verify all numbers, statistics, and trends against the source citations to ensure they are assigned to the correct fiscal year or period. Do not attribute a past year's performance (e.g. FY2025) as current or next year's performance (e.g. FY2026) and vice versa. Double check that every statistic is cited with its exact date/year from the sources.
 
 You can structure your report in a number of different ways. Here are some examples:
 
@@ -490,6 +493,7 @@ For each section of the report, do the following:
 - Do not say what you are doing in the report. Just write the report without any commentary from yourself.
 - Each section should be as long as necessary to deeply answer the question with the information you have gathered. It is expected that sections will be fairly long and verbose. You are writing a deep research report, and users will expect a thorough answer.
 - Use bullet points to list out information when appropriate, but by default, write in paragraph form.
+- **Strict Temporal and Financial Accuracy**: Meticulously verify all numbers, statistics, and trends against the source citations to ensure they are assigned to the correct fiscal year or period (e.g. distinguishing 1H25 from 1H26). Do not attribute past performance to a future year or vice versa.
 
 REMEMBER:
 The brief and research may be in English, but you need to translate this information to the right language when writing the final answer.
