@@ -53,11 +53,15 @@ def get_chat_model(model: str = "gpt-4o", max_tokens: int = None):
     import os
     from langchain.chat_models import init_chat_model
 
+    # Check environment variables for model overrides (e.g., OPENAI_MODEL, CHAT_MODEL, MODEL)
+    env_model = os.getenv("OPENAI_MODEL", os.getenv("CHAT_MODEL", os.getenv("MODEL")))
+    model_name = env_model if env_model else model
+
     api_key = os.getenv("OPENAI_API_KEY", "sk-1b582adabcc54fae8ca0ba08463dc26a")
     base_url = os.getenv("OPENAI_API_BASE", os.getenv("OPENAI_BASE_URL", "https://api.nextgen-beta.ica.ibm.com/ica/v1/chat-models"))
 
     kwargs = {
-        "model": model,
+        "model": model_name,
         "model_provider": "openai",
         "api_key": api_key,
         "base_url": base_url,
