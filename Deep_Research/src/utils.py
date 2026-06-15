@@ -48,14 +48,56 @@ def get_current_dir() -> Path:
 # ===== CONFIGURATION (lazy-loaded models & clients) =====
 
 
+class RetryingChatModel:
+    """A wrapper around LangChain chat models to automatically retry on transient API/gateway errors."""
+    def __init__(self, model):
+        self.model = model
+
+    def invoke(self, *args, **kwargs):
+        import time
+        for attempt in range(1, 5):
+            try:
+                return self.model.invoke(*args, **kwargs)
+            except Exception as e:
+                is_transient = "Model not found" in str(e) or "rate limit" in str(e).lower() or "timeout" in str(e).lower() or "50" in str(e)
+                if is_transient and attempt < 4:
+                    print(f"Transient model error in invoke (attempt {attempt}/4): {e}. Retrying in 2s...")
+                    time.sleep(2)
+                else:
+                    raise e
+
+    async def ainvoke(self, *args, **kwargs):
+        import asyncio
+        for attempt in range(1, 5):
+            try:
+                return await self.model.ainvoke(*args, **kwargs)
+            except Exception as e:
+                is_transient = "Model not found" in str(e) or "rate limit" in str(e).lower() or "timeout" in str(e).lower() or "50" in str(e)
+                if is_transient and attempt < 4:
+                    print(f"Transient model error in ainvoke (attempt {attempt}/4): {e}. Retrying in 2s...")
+                    await asyncio.sleep(2)
+                else:
+                    raise e
+
+    def with_structured_output(self, schema, **kwargs):
+        structured_model = self.model.with_structured_output(schema, **kwargs)
+        return RetryingChatModel(structured_model)
+
+    def bind_tools(self, tools, **kwargs):
+        bound_model = self.model.bind_tools(tools, **kwargs)
+        return RetryingChatModel(bound_model)
+
+    def __getattr__(self, name):
+        return getattr(self.model, name)
+
+
 def get_chat_model(model: str = "gpt-4o", max_tokens: int = None):
     """Lazy-load chat model with custom environment/ICA overrides."""
     import os
     from langchain.chat_models import init_chat_model
 
-    # Check environment variables for model overrides (e.g., OPENAI_MODEL, CHAT_MODEL, MODEL)
-    env_model = os.getenv("OPENAI_MODEL", os.getenv("CHAT_MODEL", os.getenv("MODEL")))
-    model_name = env_model if env_model else model
+    # Enforce gpt-4o strictly as requested by the user
+    model_name = "gpt-4o"
 
     api_key = os.getenv("OPENAI_API_KEY", "sk-1b582adabcc54fae8ca0ba08463dc26a")
     base_url = os.getenv("OPENAI_API_BASE", os.getenv("OPENAI_BASE_URL", "https://api.nextgen-beta.ica.ibm.com/ica/v1/chat-models"))
@@ -70,7 +112,8 @@ def get_chat_model(model: str = "gpt-4o", max_tokens: int = None):
         # Cap max_tokens to 16384 as Azure/litellm endpoint limits it for gpt-4o
         kwargs["max_tokens"] = min(max_tokens, 16384)
 
-    return init_chat_model(**kwargs)
+    raw_model = init_chat_model(**kwargs)
+    return RetryingChatModel(raw_model)
 
 
 def get_summarization_model():
