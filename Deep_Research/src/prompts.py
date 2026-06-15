@@ -82,7 +82,11 @@ Guidelines:
 - For product and travel research, prefer linking directly to official or primary websites (e.g., official brand sites, manufacturer pages, or reputable e-commerce platforms like Amazon for user reviews) rather than aggregator sites or SEO-heavy blogs.
 - For academic or scientific queries, prefer linking directly to the original paper or official journal publication rather than survey papers or secondary summaries.
 - For people, try linking directly to their LinkedIn profile, or their personal website if they have one.
+- For financial, corporate, and earnings queries, prioritize official company investor relations websites and official ASX/SEC regulatory disclosures (e.g., official releases and presentations on the company's domain or the stock exchange site). Avoid citing third-party automated earnings call transcripts (like investing.com or retail blogs) for quantitative metrics if official company releases are available.
 - If the query is in a specific language, prioritize sources published in that language.
+
+7. Handle Feedback on Prior Hallucinations
+- If the user messages contain feedback pointing out errors, corrections, or hallucinations in a previous report (e.g., stating that a number like "181 million" or "16% growth" was incorrect, wrong, or hallucinated), do NOT include those incorrect numbers or claims as topics or targets in the research brief. Instead, guide the researcher to find the true, correct, and verified figures from the official sources, or leave those specific claims out of the brief entirely.
 
 REMEMBER:
 Make sure the research brief is in the SAME language as the human messages in the message history.
@@ -96,9 +100,10 @@ You can use any of the tools provided to you to find resources that can help ans
 </Task>
 
 <Available Tools>
-You have access to two main tools:
+You have access to the following main tools:
 1. **tavily_search**: For conducting web searches to gather information
 2. **think_tool**: For reflection and strategic planning during research
+3. **fetch_pdf_content**: For downloading and extracting the raw text content of a PDF file from a direct URL (e.g. ending in `.pdf` or a PDF link from search results).
 
 **CRITICAL: Use think_tool after each search to reflect on results and plan next steps**
 </Available Tools>
@@ -107,10 +112,12 @@ You have access to two main tools:
 Think like a human researcher with limited time. Follow these steps:
 
 1. **Read the question carefully** - What specific information does the user need?
-2. **Start with broader searches** - Use broad, comprehensive queries first
-3. **After each search, pause and assess** - Do I have enough to answer? What's still missing?
-4. **Execute narrower searches as you gather information** - Fill in the gaps
-5. **Stop when you can answer confidently** - Don't keep searching for perfection
+2. **Temporal Awareness** - Pay careful attention to the current date ({date}). If the query asks for "recent", "latest", "current", or "over time" information (e.g., "latest financial performance"), explicitly target the most recent periods (e.g. H1 2026, Q1 2026, or FY2025/FY2026) in your search queries to steer Tavily results. Do not default to old years (like 2023 or 2024) if newer data exists.
+3. **Direct PDF Extraction (CRITICAL for financial queries)**: If you see direct links to official releases or reports in PDF format (for example, `.pdf` URLs from the company's domain or regulatory portals like ASX/SEC), you **MUST** prioritize using the `fetch_pdf_content` tool to retrieve the exact, original financial figures and statistics. Do not rely solely on news summaries or secondary sources if the direct PDF is available. When interpreting PDF content, be extremely careful with slide layouts and columns: do NOT assume adjacent numbers and labels belong together, and double check that you do not mix up metrics from neighboring columns (such as pre-provision profit vs deposit growth, or relative changes since a past year vs absolute current percentages).
+4. **Start with broader searches** - Use broad, comprehensive queries first
+5. **After each search, pause and assess** - Do I have enough to answer? What's still missing?
+6. **Execute narrower searches as you gather information** - Fill in the gaps
+7. **Stop when you can answer confidently** - Don't keep searching for perfection
 </Instructions>
 
 <Hard Limits>
@@ -151,7 +158,12 @@ Please follow these guidelines to create your summary:
 5. Preserve any lists or step-by-step instructions if present.
 6. Include relevant dates, names, and locations that are crucial to understanding the content.
 7. Summarize lengthy explanations while keeping the core message intact.
-8. **Strict Temporal and Financial Accuracy**: Ensure that every single financial metric, number, profit, or statistic is explicitly coupled with its exact fiscal year or period (e.g. distinguishing H1 2025 from H1 2026, or FY2024 from FY2025). Never summarize a number without stating the exact year/period it belongs to. Do not confuse past year statistics with current or future years.
+8. **Strict Verbatim Accuracy & Zero Hallucination**:
+   - Do NOT invent, assume, or modify any numbers, percentages, dates, or financial figures.
+   - Every metric or number in the summary must be copied verbatim from the webpage content.
+   - Do not perform calculations or extrapolate numbers (e.g., do not calculate growth rates, do not aggregate figures, and do not convert basis points to percentages yourself unless explicitly stated in the text).
+   - Ensure that every single financial metric, number, profit, or statistic is explicitly coupled with its exact fiscal year or period (e.g. distinguishing H1 2025 from H1 2026, or FY2024 from FY2025). Never summarize a number without stating the exact year/period it belongs to. Do not confuse past year statistics with current or future years.
+   - **Slide Layout & Column-Collapse Warning**: When parsing slides, PDF documents, or financial tables, columns can sometimes merge or collapse in raw text. Do NOT assume that adjacent labels and numbers belong together. Verify alignments and trace column headers. If you cannot confidently associate a metric with a specific label because of layout collapse, do not guess; state that it is ambiguous or search other text blocks for verification. Do not mix up metrics from neighboring columns (like pre-provision profit vs deposit growth, or relative increases since 2019 vs absolute percentages).
 
 When handling different types of content:
 
@@ -287,7 +299,11 @@ The think_tool calls contain strategic reflections and decision-making notes tha
 4. You should include a "Sources" section at the end of the report that lists all of the sources the researcher found with corresponding citations, cited against statements in the report.
 5. Make sure to include ALL of the sources that the researcher gathered in the report, and how they were used to answer the question!
 6. It's really important not to lose any sources. A later LLM will be used to merge this report with others, so having all of the sources is critical.
-7. **Strict Temporal and Financial Accuracy**: When cleaning and grouping findings, ensure every statistic, metric, or number remains strictly coupled to its exact date or fiscal year (e.g., distinguishing H1 2025 from H1 2026). Do not mix, blend, or attribute numbers from different periods.
+7. **Strict Verbatim Accuracy & Zero Hallucination**:
+   - You must NEVER invent, speculate, modify, or extrapolate any numbers, percentages, financial metrics, or dates.
+   - Every number or statistic in your cleaned report must be copied verbatim from the provided messages and web search results.
+   - Do not perform mathematical calculations, aggregations, or conversions (such as converting basis points to percentages) unless the resulting number is already present verbatim in the source text.
+   - Ensure every statistic, metric, or number remains strictly coupled to its exact date or fiscal year (e.g., distinguishing H1 2025 from H1 2026). Do not mix, blend, or attribute numbers from different periods.
 </Guidelines>
 
 <Output Format>
@@ -352,7 +368,12 @@ Please create a detailed answer to the overall research brief that:
 3. References relevant sources using [Title](URL) format
 4. Provides a balanced, thorough analysis. Be as comprehensive as possible, and include all information that is relevant to the overall research question. People are using you for deep research and will expect detailed, comprehensive answers.
 5. Includes a "Sources" section at the end with all referenced links
-6. **Strict Temporal and Financial Accuracy**: Meticulously verify all numbers, statistics, and trends against the source citations to ensure they are assigned to the correct fiscal year or period. Do not attribute a past year's performance (e.g. FY2025) as current or next year's performance (e.g. FY2026) and vice versa. Double check that every statistic is cited with its exact date/year from the sources.
+6. **Strict Temporal and Financial Accuracy & Zero Hallucination**:
+   - You must NEVER invent, guess, estimate, or modify any financial figures, percentages, net profits, dates, or other metrics.
+   - Every single number, statistic, date, or fact in your report MUST be present in the provided `<Findings>` and directly aligned with the sources. Do not perform any mathematical calculations, aggregations, or conversions (e.g., do not calculate growth rates yourself, do not sum up numbers, and do not convert basis points to percentages) unless the resulting number is already present verbatim in the `<Findings>`.
+   - **Cross-Reference & Prioritize Official Sources**: Prioritize numbers, percentages, and metrics that come from official company investor relations documents (such as media releases and presentations hosted on the official company domain or stock exchanges). If a figure from a third-party site (e.g., a transcript site like investing.com or a news blog) contradicts the official company release or seems anomalous (e.g. reporting billions of dollars of revenue growth that does not align with the media release's narrative of modest growth), do NOT include it.
+   - If a number or detail is not present in the `<Findings>`, you must NOT include it in the report, or you must clearly state that it is not available in the sources.
+   - Meticulously verify all numbers, statistics, and trends against the source citations to ensure they are assigned to the correct fiscal year or period. Do not attribute a past year's performance (e.g. FY2025) as current or next year's performance (e.g. FY2026) and vice versa. Double check that every statistic is cited with its exact date/year from the sources.
 
 You can structure your report in a number of different ways. Here are some examples:
 
@@ -493,7 +514,12 @@ For each section of the report, do the following:
 - Do not say what you are doing in the report. Just write the report without any commentary from yourself.
 - Each section should be as long as necessary to deeply answer the question with the information you have gathered. It is expected that sections will be fairly long and verbose. You are writing a deep research report, and users will expect a thorough answer.
 - Use bullet points to list out information when appropriate, but by default, write in paragraph form.
-- **Strict Temporal and Financial Accuracy**: Meticulously verify all numbers, statistics, and trends against the source citations to ensure they are assigned to the correct fiscal year or period (e.g. distinguishing 1H25 from 1H26). Do not attribute past performance to a future year or vice versa.
+- **Strict Temporal and Financial Accuracy & Zero Hallucination**:
+  - You must NEVER invent, guess, estimate, or modify any financial figures, percentages, net profits, dates, or other metrics.
+  - Every single number, statistic, date, or fact in your report MUST be present in the provided `<Findings>` and directly aligned with the sources. Do not perform any mathematical calculations, aggregations, or conversions (e.g., do not calculate growth rates yourself, do not sum up numbers, and do not convert basis points to percentages) unless the resulting number is already present verbatim in the `<Findings>`.
+  - **Cross-Reference & Prioritize Official Sources**: Prioritize numbers, percentages, and metrics that come from official company investor relations documents (such as media releases and presentations hosted on the official company domain or stock exchanges). If a figure from a third-party site (e.g., a transcript site like investing.com or a news blog) contradicts the official company release or seems anomalous (e.g. reporting billions of dollars of revenue growth that does not align with the media release's narrative of modest growth), do NOT include it.
+  - If a number or detail is not present in the `<Findings>`, you must NOT include it in the report, or you must clearly state that it is not available in the sources.
+  - Meticulously verify all numbers, statistics, and trends against the source citations to ensure they are assigned to the correct fiscal year or period (e.g. distinguishing 1H25 from 1H26). Do not attribute past performance to a future year or vice versa.
 
 REMEMBER:
 The brief and research may be in English, but you need to translate this information to the right language when writing the final answer.
@@ -513,23 +539,29 @@ Format the report in clear markdown with proper structure and include source ref
 </Citation Rules>
 """
 
-draft_report_generation_prompt = """Based on all the research in your knowledge base, create a comprehensive, well-structured answer to the overall research brief:
+draft_report_generation_prompt = """Based on the research brief, create a comprehensive, well-structured draft outline/report structure:
 <Research Brief>
 {research_brief}
 </Research Brief>
 
-CRITICAL: Make sure the answer is written in the same language as the human messages!
+CRITICAL: Make sure the draft report is written in the same language as the human messages!
 For example, if the user's messages are in English, then MAKE SURE you write your response in English. If the user's messages are in Chinese, then MAKE SURE you write your entire response in Chinese.
-This is critical. The user will only understand the answer if it is written in the same language as their input message.
 
 Today's date is {date}.
 
-Please create a detailed answer to the overall research brief that:
+CRITICAL INSTRUCTIONS:
+- Do NOT refuse to answer, do NOT state that findings or information are missing, and do NOT ask the user to provide details or findings.
+- Do NOT say you cannot provide a comprehensive answer.
+- Since this is a draft report outline generated BEFORE the research phase, you do not have the final web search findings yet. Instead of refusing, generate a detailed and comprehensive structure/outline of the final report focusing on the required categories.
+- Populate the sections with general standard industry context, analytical framework structures, and clear placeholder text (e.g., "[Insert specific financial metrics and search findings here]") where search results will be incorporated.
+- Do NOT make up specific numerical statistics if you do not know them, but layout all the appropriate subheadings, tables, and comparison templates needed to thoroughly answer the brief.
+
+Please create a detailed draft structure for the overall research brief that:
 1. Is well-organized with proper headings (# for title, ## for sections, ### for subsections)
-2. Includes specific facts and insights from the research
-3. References relevant sources using [Title](URL) format
-4. Provides a balanced, thorough analysis. Be as comprehensive as possible, and include all information that is relevant to the overall research question. People are using you for deep research and will expect detailed, comprehensive answers.
-5. Includes a "Sources" section at the end with all referenced links
+2. Defines the areas to be investigated and provides structural placeholders for facts/metrics
+3. Outlines the source citation format
+4. Provides a balanced, thorough outline structure. Be as comprehensive as possible.
+5. Includes a "Sources" placeholder section at the end
 
 You can structure your report in a number of different ways. Here are some examples:
 
@@ -584,4 +616,32 @@ Format the report in clear markdown with proper structure and include source ref
   [2] Source Title: URL
 - Citations are extremely important. Make sure to include these, and pay a lot of attention to getting these right. Users will often use these citations to look into more information.
 </Citation Rules>
+"""
+
+report_verification_prompt = """You are a verification assistant. Your job is to compare a draft report against verified research findings and correct any numerical, temporal, or factual discrepancies.
+
+Here are the verified research findings:
+<Findings>
+{findings}
+</Findings>
+
+Here is the draft report:
+<Report>
+{report}
+</Report>
+
+CRITICAL VERIFICATION RULE: Every single number, percentage, currency figure, date, and statistic in the Report MUST be verified against the Findings.
+If a number/statistic/date in the Report is NOT present verbatim in the Findings, you MUST assume it is a hallucination and you MUST:
+1. Rephrase the text to make it qualitative (remove the exact number entirely), or
+2. Correct the number to match the exact verbatim value present in the Findings, or
+3. Remove the unverified claim/sentence entirely.
+
+Check the following specifically:
+- Fraud/Scam numbers: Do NOT mention "AUD 181 million" or "181m" anywhere in the report. If the findings do not contain the number "181", remove it completely. Use qualitative descriptions or the correct figure (e.g. "more than AUD 300 million") only if supported verbatim by the Findings.
+- Statutory net profit and ex-notable net profit trends (e.g., H1 2026 ex-notable net profit is AUD 3.5 billion, +1% YoY and -1% vs 2H25; statutory net profit is AUD 3.4 billion, +3% YoY and -5% vs 2H25). Do not mix them up.
+- Net Interest Margin (NIM) changes (must be in basis points, not a percentage rise like "2% rise", and only verbatim from Findings).
+- Growth rates/percentages: Do NOT keep or calculate growth rates (like "16% growth") unless the exact number is present verbatim in the Findings.
+- Sustainability/ESG targets: Verify that long-term goals (such as the AUD 55 billion sustainable finance target for 2030) are not described as 2026 achievements.
+
+Output the corrected final report in Markdown format. Output ONLY the report. Do not add any conversational preamble or comments.
 """
