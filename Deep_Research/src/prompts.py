@@ -101,7 +101,7 @@ You can use any of the tools provided to you to find resources that can help ans
 
 <Available Tools>
 You have access to the following main tools:
-1. **tavily_search**: For conducting web searches to gather information
+1. **tavily_search**: For conducting web searches to gather information. *Tip: For news, current events, or recent corporate developments, prefer using `topic="general"` (the default) rather than `topic="news"`. The general search index is much more comprehensive and up-to-date for corporate press releases and news details.*
 2. **think_tool**: For reflection and strategic planning during research
 3. **fetch_pdf_content**: For downloading and extracting the raw text content of a PDF file from a direct URL (e.g. ending in `.pdf` or a PDF link from search results).
 
