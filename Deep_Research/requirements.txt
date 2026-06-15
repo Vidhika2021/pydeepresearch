@@ -14,3 +14,4 @@ ipykernel>=6.20.0
 tavily-python>=0.5.0
 mcp>=1.0.0
 sse-starlette
+pypdf>=5.0.0
