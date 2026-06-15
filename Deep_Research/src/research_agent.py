@@ -4,6 +4,7 @@ This module implements a research agent that can perform iterative web searches
 and synthesis to answer complex research questions.
 """
 
+import time
 from typing_extensions import Literal
 
 from langgraph.graph import StateGraph, START, END
@@ -15,7 +16,7 @@ from langchain_core.messages import (
 )
 
 from deep_research.state_research import ResearcherState, ResearcherOutputState
-from deep_research.utils import tavily_search, get_today_str, think_tool
+from deep_research.utils import tavily_search, get_today_str, think_tool, fetch_pdf_content
 from deep_research.prompts import (
     research_agent_prompt,
     compress_research_system_prompt,
@@ -25,7 +26,7 @@ from deep_research.prompts import (
 # ===== CONFIGURATION =====
 
 # Set up tools and model binding
-tools = [tavily_search, think_tool]
+tools = [tavily_search, think_tool, fetch_pdf_content]
 tools_by_name = {tool.name: tool for tool in tools}
 
 
@@ -58,13 +59,23 @@ def llm_call(state: ResearcherState):
     """
     model_with_tools = get_model_with_tools()
 
-    return {
-        "researcher_messages": [
-            model_with_tools.invoke(
+    # Retry loop to handle transient nextgen/ICA gateway errors
+    response = None
+    for attempt in range(1, 4):
+        try:
+            response = model_with_tools.invoke(
                 [SystemMessage(content=research_agent_prompt)]
                 + state["researcher_messages"]
             )
-        ]
+            break
+        except Exception as e:
+            print(f"Researcher LLM invocation attempt {attempt} failed: {e}")
+            if attempt == 3:
+                raise e
+            time.sleep(2)
+
+    return {
+        "researcher_messages": [response]
     }
 
 
@@ -105,9 +116,26 @@ def compress_research(state: ResearcherState) -> dict:
     messages = (
         [SystemMessage(content=system_message)]
         + state.get("researcher_messages", [])
-        + [HumanMessage(content=compress_research_human_message)]
+        + [
+            HumanMessage(
+                content=compress_research_human_message.format(
+                    research_topic=state.get("research_topic", "")
+                )
+            )
+        ]
     )
-    response = compress_model.invoke(messages)
+    
+    # Retry loop to handle transient nextgen/ICA gateway errors
+    response = None
+    for attempt in range(1, 4):
+        try:
+            response = compress_model.invoke(messages)
+            break
+        except Exception as e:
+            print(f"Compression model invocation attempt {attempt} failed: {e}")
+            if attempt == 3:
+                raise e
+            time.sleep(2)
 
     # Extract raw notes from tool and AI messages
     raw_notes = [
