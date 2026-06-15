@@ -4,6 +4,7 @@ This module provides search and content processing utilities for the research ag
 including web search capabilities and content summarization tools.
 """
 
+import time
 from pathlib import Path
 from datetime import datetime
 from typing_extensions import Annotated, List, Literal
@@ -75,7 +76,7 @@ def get_summarization_model():
 
 def get_writer_model():
     """Lazy-load writer model AFTER environment variables are loaded."""
-    return get_chat_model(model="gpt-4o", max_tokens=32000)
+    return get_chat_model(model="gpt-4o", max_tokens=8192)
 
 
 def get_tavily_client():
@@ -132,36 +133,39 @@ def summarize_webpage_content(webpage_content: str) -> str:
     Returns:
         Formatted summary with key excerpts
     """
-    try:
-        # Set up structured output model for summarization
-        structured_model = get_summarization_model().with_structured_output(Summary)
-
-        # Generate summary
-        summary = structured_model.invoke(
-            [
-                HumanMessage(
-                    content=summarize_webpage_prompt.format(
-                        webpage_content=webpage_content, date=get_today_str()
+    # Retry loop to handle transient nextgen/ICA gateway errors
+    structured_model = get_summarization_model().with_structured_output(Summary)
+    summary = None
+    for attempt in range(1, 4):
+        try:
+            summary = structured_model.invoke(
+                [
+                    HumanMessage(
+                        content=summarize_webpage_prompt.format(
+                            webpage_content=webpage_content, date=get_today_str()
+                        )
                     )
+                ]
+            )
+            break
+        except Exception as e:
+            print(f"Webpage summarization attempt {attempt} failed: {e}")
+            if attempt == 3:
+                print(f"Failed to summarize webpage after 3 attempts: {str(e)}")
+                return (
+                    webpage_content[:1000] + "..."
+                    if len(webpage_content) > 1000
+                    else webpage_content
                 )
-            ]
-        )
+            time.sleep(2)
 
-        # Format summary with clear structure
-        formatted_summary = (
-            f"<summary>\n{summary.summary}\n</summary>\n\n"
-            f"<key_excerpts>\n{summary.key_excerpts}\n</key_excerpts>"
-        )
+    # Format summary with clear structure
+    formatted_summary = (
+        f"<summary>\n{summary.summary}\n</summary>\n\n"
+        f"<key_excerpts>\n{summary.key_excerpts}\n</key_excerpts>"
+    )
 
-        return formatted_summary
-
-    except Exception as e:
-        print(f"Failed to summarize webpage: {str(e)}")
-        return (
-            webpage_content[:1000] + "..."
-            if len(webpage_content) > 1000
-            else webpage_content
-        )
+    return formatted_summary
 
 
 def deduplicate_search_results(search_results: List[dict]) -> dict:
@@ -327,6 +331,70 @@ def refine_draft_report(
     )
 
     writer_model = get_writer_model()
-    draft_report_msg = writer_model.invoke([HumanMessage(content=draft_report_prompt)])
+    
+    # Retry loop to handle transient nextgen/ICA gateway errors
+    draft_report_msg = None
+    for attempt in range(1, 4):
+        try:
+            draft_report_msg = writer_model.invoke([HumanMessage(content=draft_report_prompt)])
+            break
+        except Exception as e:
+            print(f"Refining draft report attempt {attempt} failed: {e}")
+            if attempt == 3:
+                raise e
+            time.sleep(2)
 
     return draft_report_msg.content
+
+
+@tool(parse_docstring=True)
+def fetch_pdf_content(pdf_url: str) -> str:
+    """Download a PDF file from a URL and extract its text content.
+
+    This tool is critical for extracting raw, precise numbers, dates, tables, and statistics
+    from official financial report PDFs or regulatory filings (such as ASX, SEC, or annual reports).
+
+    Args:
+        pdf_url: The direct URL to the PDF file to download and parse.
+
+    Returns:
+        A structured string containing the extracted text from the PDF pages, or an error message.
+    """
+    import io
+    import urllib.request
+    import ssl
+    from pypdf import PdfReader
+
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+        req = urllib.request.Request(pdf_url, headers=headers)
+        # Timeout after 25 seconds to prevent hanging
+        # Use unverified SSL context to bypass proxy/certificate verification errors
+        context = ssl._create_unverified_context()
+        with urllib.request.urlopen(req, timeout=25, context=context) as response:
+            pdf_data = response.read()
+    except Exception as e:
+        return f"Error downloading PDF from {pdf_url}: {e}"
+
+    try:
+        reader = PdfReader(io.BytesIO(pdf_data))
+        num_pages = len(reader.pages)
+        
+        extracted_text = []
+        max_pages_to_extract = 10
+        pages_to_read = min(num_pages, max_pages_to_extract)
+        
+        for i in range(pages_to_read):
+            page_text = reader.pages[i].extract_text(extraction_mode="layout") or ""
+            extracted_text.append(f"--- Page {i+1} ---\n{page_text.strip()}\n")
+            
+        result = "\n".join(extracted_text)
+        if num_pages > max_pages_to_extract:
+            result += f"\n\n[TRUNCATED: PDF has {num_pages} pages total. Only the first {max_pages_to_extract} pages were extracted to prevent context length limits. Use more specific search queries if you need information from later pages.]"
+            
+        return result
+    except Exception as e:
+        return f"Error parsing PDF content: {e}"
+
