@@ -7,7 +7,7 @@ including web search capabilities and content summarization tools.
 import time
 from pathlib import Path
 from datetime import datetime
-from typing_extensions import Annotated, List, Literal
+from typing_extensions import Annotated, List, Literal, Optional
 
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool, InjectedToolArg
@@ -143,6 +143,7 @@ def tavily_search_multiple(
     max_results: int = 3,
     topic: Literal["general", "news", "finance"] = "general",
     include_raw_content: bool = True,
+    time_range: Optional[str] = None,
 ) -> List[dict]:
     """Perform search using Tavily API for multiple queries.
 
@@ -151,6 +152,7 @@ def tavily_search_multiple(
         max_results: Maximum number of results per query
         topic: Topic filter for search results
         include_raw_content: Whether to include raw webpage content
+        time_range: Time range to filter results by ('day', 'week', 'month', 'year')
 
     Returns:
         List of search result dictionaries
@@ -165,6 +167,7 @@ def tavily_search_multiple(
             max_results=max_results,
             include_raw_content=include_raw_content,
             topic=topic,
+            time_range=time_range,
         )
         search_docs.append(result)
 
@@ -294,6 +297,7 @@ def tavily_search(
     topic: Annotated[
         Literal["general", "news", "finance"], InjectedToolArg
     ] = "general",
+    time_range: Optional[Literal["day", "week", "month", "year"]] = None,
 ) -> str:
     """Fetch results from Tavily search API with content summarization.
 
@@ -301,6 +305,7 @@ def tavily_search(
         query: A single search query to execute
         max_results: Maximum number of results to return
         topic: Topic to filter results by ('general', 'news', 'finance')
+        time_range: Optional time range to filter results by ('day', 'week', 'month', 'year')
 
     Returns:
         Formatted string of search results with summaries
@@ -311,6 +316,7 @@ def tavily_search(
         max_results=max_results,
         topic=topic,
         include_raw_content=True,
+        time_range=time_range,
     )
 
     # Deduplicate results by URL to avoid processing duplicate content

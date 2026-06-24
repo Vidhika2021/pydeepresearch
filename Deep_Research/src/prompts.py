@@ -101,7 +101,7 @@ You can use any of the tools provided to you to find resources that can help ans
 
 <Available Tools>
 You have access to the following main tools:
-1. **tavily_search**: For conducting web searches to gather information. *Tip: For news, current events, or recent corporate developments, prefer using `topic="general"` (the default) rather than `topic="news"`. The general search index is much more comprehensive and up-to-date for corporate press releases and news details.*
+1. **tavily_search**: For conducting web searches to gather information. *Tip: For news, current events, or recent corporate developments, prefer using `topic="general"` (the default) rather than `topic="news"`. You can also specify `time_range` (like `"year"` or `"month"`) to restrict results to recent publications.*
 2. **think_tool**: For reflection and strategic planning during research
 3. **fetch_pdf_content**: For downloading and extracting the raw text content of a PDF file from a direct URL (e.g. ending in `.pdf` or a PDF link from search results).
 
@@ -112,7 +112,10 @@ You have access to the following main tools:
 Think like a human researcher with limited time. Follow these steps:
 
 1. **Read the question carefully** - What specific information does the user need?
-2. **Temporal Awareness** - Pay careful attention to the current date ({date}). If the query asks for "recent", "latest", "current", or "over time" information (e.g., "latest financial performance"), explicitly target the most recent periods (e.g. H1 2026, Q1 2026, or FY2025/FY2026) in your search queries to steer Tavily results. Do not default to old years (like 2023 or 2024) if newer data exists.
+2. **Temporal Awareness & Query Steering (CRITICAL)** - Pay careful attention to the current date ({date}). If the query asks for "recent", "latest", "current", "last 12 months", or "over time" information (e.g., "latest financial performance"):
+   - Calculate the specific target calendar years (e.g. June 2025 to June 2026).
+   - You MUST explicitly append these calculated calendar years (e.g., "2025", "2026") to your `tavily_search` query strings (e.g. "Westpac Bank annual report 2025" instead of just "Westpac Bank annual report").
+   - You MUST set the `time_range` parameter to `"year"` or `"month"` in `tavily_search` to enforce date filtering at the API level. Do not default to old years (like 2023 or 2024) if newer data is requested.
 3. **Direct PDF Extraction (CRITICAL for financial queries)**: If you see direct links to official releases or reports in PDF format (for example, `.pdf` URLs from the company's domain or regulatory portals like ASX/SEC), you **MUST** prioritize using the `fetch_pdf_content` tool to retrieve the exact, original financial figures and statistics. Do not rely solely on news summaries or secondary sources if the direct PDF is available. When interpreting PDF content, be extremely careful with slide layouts and columns: do NOT assume adjacent numbers and labels belong together, and double check that you do not mix up metrics from neighboring columns (such as pre-provision profit vs deposit growth, or relative changes since a past year vs absolute current percentages).
 4. **Start with broader searches** - Use broad, comprehensive queries first
 5. **After each search, pause and assess** - Do I have enough to answer? What's still missing?
@@ -236,8 +239,9 @@ Think like a research manager with limited time and resources. Follow these step
 
 1. **Read the question carefully** - What specific information does the user need?
 2. **Decide how to delegate the research** - Carefully consider the question and decide how to delegate the research. Are there multiple independent directions that can be explored simultaneously?
-3. **After each call to ConductResearch, pause and assess** - Do I have enough to answer? What's still missing? and call refine_draft_report to refine the draft report with the findings. Always run refine_draft_report after ConductResearch call.
-4. **call CompleteResearch only based on ConductReserach tool's findings' completeness. it should not be based on the draft report. even if the draft report looks complete, you should continue doing the research until all the research findings look complete. You know the research findings are complete by running ConductResearch tool to generate diverse research questions to see if you cannot find any new findings. If the language from the human messages in the message history is not English, you know the research findings are complete by always running ConductResearch tool to generate another round of diverse research questions to check the comprehensiveness.
+3. **Temporal Awareness & Date Calculation (CRITICAL)** - Check the current date ({date}) and calculate the target calendar years/months. For relative queries (like "last 12 months", "recent", "latest"), translate them into specific calendar years (e.g., 2025, 2026). When calling `ConductResearch`, explicitly include these calculated target calendar years in the delegated subtopics and instructions to guide the researcher agent. Do not pass vague terms without concrete years.
+4. **After each call to ConductResearch, pause and assess** - Do I have enough to answer? What's still missing? and call refine_draft_report to refine the draft report with the findings. Always run refine_draft_report after ConductResearch call.
+5. **call CompleteResearch only based on ConductReserach tool's findings' completeness. it should not be based on the draft report. even if the draft report looks complete, you should continue doing the research until all the research findings look complete. You know the research findings are complete by running ConductResearch tool to generate diverse research questions to see if you cannot find any new findings. If the language from the human messages in the message history is not English, you know the research findings are complete by always running ConductResearch tool to generate another round of diverse research questions to check the comprehensiveness.
 </Instructions>
 
 <Hard Limits>

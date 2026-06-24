@@ -128,7 +128,18 @@ async def supervisor(state: SupervisorState) -> Command[Literal["supervisor_tool
     messages = [SystemMessage(content=system_message)] + filtered_history
 
     supervisor_model_with_tools = get_supervisor_model_with_tools()
-    response = await supervisor_model_with_tools.ainvoke(messages)
+    
+    # Retry loop for supervisor model invocation to handle transient gateway errors
+    response = None
+    for attempt in range(1, 4):
+        try:
+            response = await supervisor_model_with_tools.ainvoke(messages)
+            break
+        except Exception as e:
+            print(f"Supervisor model invocation attempt {attempt} failed: {e}")
+            if attempt == 3:
+                raise e
+            await asyncio.sleep(2)
 
     # We append the new assistant response (with tool_calls) to the existing history;
     # supervisor_tools() will actually execute those tool calls.
@@ -209,15 +220,26 @@ async def supervisor_tools(
 
         # 2) ConductResearch (async, parallel)
         if conduct_research_calls:
+            async def run_researcher_with_retry(tc_args: dict, max_retries: int = 3) -> dict:
+                for attempt in range(1, max_retries + 1):
+                    try:
+                        res = await researcher_agent.ainvoke(
+                            {
+                                "researcher_messages": [
+                                    HumanMessage(content=tc_args["research_topic"])
+                                ],
+                                "research_topic": tc_args["research_topic"],
+                            }
+                        )
+                        return res
+                    except Exception as e:
+                        print(f"Researcher attempt {attempt} for topic '{tc_args['research_topic']}' failed: {e}")
+                        if attempt == max_retries:
+                            raise e
+                        await asyncio.sleep(3)
+
             coros = [
-                researcher_agent.ainvoke(
-                    {
-                        "researcher_messages": [
-                            HumanMessage(content=tc["args"]["research_topic"])
-                        ],
-                        "research_topic": tc["args"]["research_topic"],
-                    }
-                )
+                run_researcher_with_retry(tc["args"])
                 for tc in conduct_research_calls
             ]
             results = await asyncio.gather(*coros)

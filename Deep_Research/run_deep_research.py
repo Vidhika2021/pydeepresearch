@@ -27,7 +27,7 @@ async def main():
     full_agent = deep_researcher_builder.compile(checkpointer=memory)
 
     # ----- Your stakeholder analysis prompt -----
-    user_prompt = "I need deep company analysis on Westpac Bank in Australia, hihglighting their key goals, challenges and performance. Focus on the latest information, reports and news as of 2025. Also do a deep research on Westpac Bank's technology stack and technology challenges and where they are already looking to invest or there is a need for them to invest, given the goals and challenges. Since you are an IBM consulting, you need to look for potential opportunities in IT Services to partner with Westpac Bank. Your key offerings are in the areas of ERP, core banking modernization, managed services, Ai integration services, mainframe modernization services, banking specific ISV partnership and solutions"
+    user_prompt = "I need a report on the financial performance of Westpac Bank in Australia during the last 12 months. Focus on their latest goals, challenges and metrics."
 
     # LangGraph config: increase recursion_limit enough for full pipeline
     thread_config = {

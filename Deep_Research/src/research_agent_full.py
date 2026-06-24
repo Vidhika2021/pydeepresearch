@@ -17,6 +17,7 @@ from langgraph.graph import StateGraph, START, END
 from deep_research.utils import get_today_str, get_writer_model
 from deep_research.prompts import (
     final_report_generation_with_helpfulness_insightfulness_hit_citation_prompt,
+    report_verification_prompt,
 )
 from deep_research.state_scope import AgentState, AgentInputState
 from deep_research.research_agent_scope import (
@@ -50,13 +51,47 @@ async def final_report_generation(state: AgentState):
     )
 
     writer_model = get_writer_model()
-    final_report = await writer_model.ainvoke(
-        [HumanMessage(content=final_report_prompt)]
+    
+    # Retry loop for final report generation to handle transient gateway errors
+    final_report = None
+    for attempt in range(1, 4):
+        try:
+            final_report = await writer_model.ainvoke(
+                [HumanMessage(content=final_report_prompt)]
+            )
+            break
+        except Exception as e:
+            print(f"Final report generation attempt {attempt} failed: {e}")
+            if attempt == 3:
+                raise e
+            import asyncio
+            await asyncio.sleep(2)
+
+    # Verification and correction pass
+    verification_prompt = report_verification_prompt.format(
+        findings=findings,
+        report=final_report.content,
     )
+    
+    corrected_report = final_report.content
+    for attempt in range(1, 4):
+        try:
+            corrected_msg = await writer_model.ainvoke(
+                [HumanMessage(content=verification_prompt)]
+            )
+            corrected_report = corrected_msg.content
+            break
+        except Exception as e:
+            print(f"Report verification attempt {attempt} failed: {e}")
+            if attempt == 3:
+                print("Failed report verification after 3 attempts, falling back to original final report.")
+            else:
+                import asyncio
+                await asyncio.sleep(2)
 
     return {
-        "final_report": final_report.content,
-        "messages": ["Here is the final report: " + final_report.content],
+        "final_report": corrected_report,
+        "messages": ["Here is the final report: " + corrected_report],
     }
 
 
