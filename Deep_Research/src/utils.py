@@ -376,6 +376,9 @@ def refine_draft_report(
         refined draft report
     """
 
+    if not findings or not findings.strip():
+        return draft_report
+
     draft_report_prompt = report_generation_with_draft_insight_prompt.format(
         research_brief=research_brief,
         findings=findings,

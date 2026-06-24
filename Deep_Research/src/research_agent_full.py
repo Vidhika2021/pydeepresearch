@@ -42,6 +42,13 @@ async def final_report_generation(state: AgentState):
     notes = state.get("notes", [])
     findings = "\n".join(notes)
 
+    if not findings.strip():
+        error_msg = "Research failed to gather any findings from the web searches. Please refine your query or try again later."
+        return {
+            "final_report": error_msg,
+            "messages": ["Error: " + error_msg],
+        }
+
     final_report_prompt = final_report_generation_with_helpfulness_insightfulness_hit_citation_prompt.format(
         research_brief=state.get("research_brief", ""),
         findings=findings,
